@@ -1,28 +1,57 @@
 import React from "react";
-import { SettingOutlined } from "@ant-design/icons";
+import { MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined } from "@ant-design/icons";
 import { SidebarMenu } from "../navigation/SidebarMenu";
 import { ProfileWidget } from "../navigation/ProfileWidget";
 
-export const Sidebar: React.FC = () => (
-  <aside className="h-screen w-64 fixed left-0 top-0 bg-slate-120 flex flex-col py-6 z-20 shadow-xl">
-    <div className="px-6 mb-10">
-      <h1 className="text-lg font-bold text-primary tracking-tighter font-headline">
-        Origin
-      </h1>
-      <p className="text-[10px] text-on-surface-variant font-medium uppercase tracking-wider">
-        开发版
-      </p>
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => (
+  <aside
+    className={
+      collapsed
+        ? "fixed left-0 top-0 z-20 flex h-screen w-20 flex-col rounded-r-3xl bg-slate-100 py-6 shadow-xl transition-all duration-300"
+        : "fixed left-0 top-0 z-20 flex h-screen w-64 flex-col rounded-r-3xl bg-slate-100 py-6 shadow-xl transition-all duration-300"
+    }
+  >
+    <div className={collapsed ? "mb-8 px-3" : "mb-10 px-6"}>
+      <div className={collapsed ? "flex items-center justify-center" : "flex items-center justify-between gap-3"}>
+        <div className="min-w-0">
+          <h1 className="font-headline text-lg font-bold tracking-tighter text-primary">{collapsed ? "" : "Origin"}</h1>
+          {!collapsed && (
+            <p className="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant">开发版</p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition-colors hover:text-primary"
+          aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
+          title={collapsed ? "展开侧边栏" : "收起侧边栏"}
+        >
+          {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        </button>
+      </div>
     </div>
 
-    <SidebarMenu />
+    <SidebarMenu collapsed={collapsed} />
 
-    <div className="mt-auto px-6 hover:bg-slate-100">
-      <button className="flex items-center gap-3 w-full p-3 rounded-lg transition-colors">
-        <SettingOutlined className="text-2xl transition-transform duration-300 ease-in-out hover:rotate-90 hover:scale-125 cursor-pointer inline-block text-slate-600" />
-        <span className="text-sm w-full font-medium text-slate-600">设置</span>
+    <div className={collapsed ? "mt-auto px-3" : "mt-auto px-6"}>
+      <button
+        type="button"
+        className={
+          collapsed
+            ? "flex w-full items-center justify-center rounded-2xl p-3 text-slate-600 transition-colors hover:bg-slate-200 hover:text-primary"
+            : "flex w-full items-center gap-3 rounded-2xl p-3 text-slate-600 transition-colors hover:bg-slate-200 hover:text-primary"
+        }
+      >
+        <SettingOutlined className="text-xl transition-transform duration-300 ease-in-out hover:rotate-90" />
+        {!collapsed && <span className="text-sm font-medium">设置</span>}
       </button>
     </div>
 
-    <ProfileWidget />
+    <ProfileWidget collapsed={collapsed} />
   </aside>
 );

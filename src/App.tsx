@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { MainLayout } from "./components/layout/MainLayout";
+import { AnalyticsPage } from "./components/pages/AnalyticsPage";
 import { DashboardPage } from "./components/pages/DashboardPage";
 import { InventoryStatusPage } from "./components/pages/InventoryStatusPage";
 
@@ -12,10 +13,6 @@ function LayoutWrapper() {
   );
 }
 
-function AnalysisPage() {
-  return <section className="min-h-[200px]" />;
-}
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -23,7 +20,7 @@ export default function App() {
         <Route element={<LayoutWrapper />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/inventory-status" element={<InventoryStatusPage />} />
-          <Route path="/analysis" element={<AnalysisPage />} />
+          <Route path="/analysis" element={<AnalyticsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

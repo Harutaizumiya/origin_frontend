@@ -1,0 +1,69 @@
+import type { ReactNode } from "react";
+
+export type InventoryHealth = "healthy" | "warning" | "critical";
+export type InventoryStorageIcon = "temperature" | "humidity";
+
+export interface InventoryRecord {
+  id: string;
+  quantity: string;
+  manufacturer: string;
+  productName: string;
+  category: string;
+  location: string;
+  manufactureDate: string;
+  expireDate: string;
+  receivedDate: string;
+}
+
+export interface ShelfLifeMetrics {
+  percent: number;
+  remainingDays: number;
+  health: InventoryHealth;
+}
+
+export interface InventoryHealthMeta {
+  label: string;
+  hint: string;
+  tagClassName: string;
+  lineClassName: string;
+  icon: ReactNode;
+  progress: string;
+}
+
+export interface InventoryStorageRequirement {
+  label: string;
+  value: string;
+  subValue: string;
+  icon: InventoryStorageIcon;
+  colorClassName: string;
+}
+
+export interface InventoryRelatedBatch {
+  id: string;
+  quantity: number;
+  manufactureDate: string;
+  expireDate: string;
+  progress: number;
+  remainingDays: number;
+  health: InventoryHealth;
+}
+
+export interface InventoryBatchDetail {
+  sku: string;
+  currentStock: number;
+  averageLossRate: string;
+  batchCount: number;
+  primaryBatchId: string;
+  storageRequirements: InventoryStorageRequirement[];
+  relatedBatches: InventoryRelatedBatch[];
+}
+
+export interface InventoryBatchDetailModalProps {
+  open: boolean;
+  item: InventoryRecord | null;
+  detail: InventoryBatchDetail | null;
+  metrics: ShelfLifeMetrics | null;
+  onClose: () => void;
+  formatDate: (date: string) => string;
+  formatQuantity: (quantity: string) => string;
+}

@@ -29,7 +29,7 @@ export const Header: React.FC = () => (
       </div>
       <div className="text-right">
         <p className="text-sm font-bold text-on-surface">库存管理系统</p>
-        <p className="text-[10px] text-on-surface-variant">2024年5月24日</p>
+        <p className="text-[10px] text-on-surface-variant">{new Date().toLocaleDateString('zh-CN')}</p>
       </div>
     </div>
   </header>

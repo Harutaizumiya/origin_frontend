@@ -1,39 +1,66 @@
 import React from "react";
-import { TrendChart } from "./TrendChart";
+import { useLayoutContext } from "../layout/LayoutContext";
 import { DistributionChart } from "./DistributionChart";
+import { TrendChart } from "./TrendChart";
 
-export const ChartGrid: React.FC = () => (
-  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-    {/* Trend Chart */}
-    <div className="lg:col-span-2 bg-surface-container-lowest p-8 rounded-3xl ambient-shadow border border-surface-container/10">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h4 className="text-lg font-bold text-on-surface font-headline">
-            库存到期趋势 (未来30天)
-          </h4>
-          <p className="text-xs text-on-surface-variant mt-1">
-            基于当前批次效期预测的流转压力
-          </p>
+function ChartSkeleton({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={compact ? "space-y-5" : "h-64 w-full"}>
+      {compact ? (
+        <>
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="space-y-2">
+              <div className="flex justify-between">
+                <div className="h-3 w-16 rounded-full bg-slate-200/80" />
+                <div className="h-3 w-8 rounded-full bg-slate-200/80" />
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200/80">
+                <div className="h-full rounded-full bg-slate-300/80" style={{ width: `${70 - index * 12}%` }} />
+              </div>
+            </div>
+          ))}
+        </>
+      ) : (
+        <div className="flex h-full items-end gap-3">
+          {Array.from({ length: 7 }).map((_, index) => (
+            <div
+              key={index}
+              className="flex-1 rounded-t-2xl bg-slate-200/80"
+              style={{ height: `${45 + ((index * 11) % 35)}%` }}
+            />
+          ))}
         </div>
-        <div className="flex gap-2">
-          <button className="px-3 py-1.5 text-xs font-bold bg-primary text-white rounded-lg">
-            按天
-          </button>
-          <button className="px-3 py-1.5 text-xs font-bold bg-surface-container-high text-on-surface-variant rounded-lg">
-            按周
-          </button>
+      )}
+    </div>
+  );
+}
+
+export const ChartGrid: React.FC = () => {
+  const { isSidebarAnimating } = useLayoutContext();
+
+  return (
+    <div className="mb-8 grid grid-cols-1 gap-8 lg:grid-cols-3">
+      <div className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8 lg:col-span-2">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h4 className="font-headline text-lg font-bold text-on-surface">库存到期趋势（未来30天）</h4>
+            <p className="mt-1 text-xs text-on-surface-variant">基于当前批次效期预测未来的流转压力。</p>
+          </div>
+          <div className="flex gap-2">
+            <button className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white">按天</button>
+            <button className="rounded-lg bg-surface-container-high px-3 py-1.5 text-xs font-bold text-on-surface-variant">
+              按周
+            </button>
+          </div>
         </div>
+
+        {isSidebarAnimating ? <ChartSkeleton /> : <TrendChart />}
       </div>
 
-      <TrendChart />
+      <div className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8">
+        <h4 className="mb-8 font-headline text-lg font-bold text-on-surface">品类库存分布</h4>
+        {isSidebarAnimating ? <ChartSkeleton compact /> : <DistributionChart />}
+      </div>
     </div>
-
-    {/* Distribution */}
-    <div className="bg-surface-container-lowest p-8 rounded-3xl ambient-shadow border border-surface-container/10">
-      <h4 className="text-lg font-bold text-on-surface font-headline mb-8">
-        品类库存分布
-      </h4>
-      <DistributionChart />
-    </div>
-  </div>
-);
+  );
+};
