@@ -3,13 +3,9 @@ import { cn } from "../../lib/utils";
 
 interface StatusBadgeProps {
   status: "critical" | "warning" | "normal";
-  children: React.ReactNode;
 }
 
-export const StatusBadge: React.FC<StatusBadgeProps> = ({
-  status,
-  children,
-}) => (
+export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => (
   <span
     className={cn(
       "w-2 h-2 rounded-full",
@@ -19,7 +15,5 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           ? "bg-amber-500"
           : "bg-primary",
     )}
-  >
-    {children}
-  </span>
+  />
 );

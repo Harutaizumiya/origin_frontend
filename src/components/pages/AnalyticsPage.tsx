@@ -229,16 +229,9 @@ export const AnalyticsPage: React.FC = () => {
           <p className="mt-1 text-on-surface-variant">围绕库存价值、吞吐效率与损耗表现，观察仓储运营的关键变化。</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-            <BarChartOutlined className="text-primary" />
-            <div className="text-sm">
-              <div className="font-bold text-on-surface">分析视图已同步</div>
-              <div className="text-on-surface-variant">图表与榜单统一为当前控制台设计语言</div>
-            </div>
-          </div>
           <button
             type="button"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.2)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(37,99,235,0.26)]"
+            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
           >
             <Download size={16} />
             下载报告

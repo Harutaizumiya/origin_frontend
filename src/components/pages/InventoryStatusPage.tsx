@@ -1,14 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AppstoreOutlined,
-  BarChartOutlined,
   BarsOutlined,
   CheckCircleFilled,
   ClockCircleFilled,
   DashboardOutlined,
   ExclamationCircleFilled,
 } from "@ant-design/icons";
-import { ChevronLeft, ChevronRight, Package, ShieldCheck, TriangleAlert, Warehouse } from "lucide-react";
+import { ChevronLeft, ChevronRight, Package, Plus, ShieldCheck, TriangleAlert, Warehouse } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { FloatingActionButtons } from "../actions/FloatingActionButtons";
 import { StatCard } from "../dashboard/StatCard";
@@ -728,13 +727,13 @@ export const InventoryStatusPage: React.FC = () => {
             以批次与效期视角查看库存状态，快速识别临期商品并追踪各库位批次健康度。
           </p>
         </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-          <BarChartOutlined className="text-primary" />
-          <div className="text-sm">
-            <div className="font-bold text-on-surface">效期监控已同步</div>
-            <div className="text-on-surface-variant">卡片与列表均按临期优先顺序展示</div>
-          </div>
-        </div>
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
+        >
+          <Plus size={18} />
+          新建批次
+        </button>
       </div>
 
       <InventoryOverviewCards />

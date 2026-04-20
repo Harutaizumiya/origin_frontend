@@ -11,7 +11,10 @@ export const PageHeader: React.FC = () => (
         监控全局食品库存状态及效期风险
       </p>
     </div>
-    <button className="px-6 py-2.5 bg-gradient-to-r from-primary to-primary-container text-white rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+    <button
+      type="button"
+      className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
+    >
       <Download size={16} />
       导出报表
     </button>

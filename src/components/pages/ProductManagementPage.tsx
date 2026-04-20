@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -110,6 +111,7 @@ function ProductFormModal({
   barcodeError,
   onChange,
   onClose,
+  onDelete,
   onSubmit,
 }: {
   open: boolean;
@@ -118,133 +120,163 @@ function ProductFormModal({
   barcodeError: string | null;
   onChange: (field: keyof ProductFormInput, value: string) => void;
   onClose: () => void;
+  onDelete: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
-  if (!open) {
-    return null;
-  }
-
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]">
-      <div className="ambient-shadow relative w-full max-w-3xl overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest">
-        <div className="flex items-start justify-between border-b border-surface-container-high px-8 py-6">
-          <div>
-            <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
-              {product ? "编辑货物" : "新增货物"}
-            </h3>
-            <p className="mt-1 text-sm text-on-surface-variant">维护货物主数据，更新后会立即反映在当前列表中。</p>
-          </div>
-          <button
-            type="button"
+    <AnimatePresence>
+      {open ? (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[3px]"
             onClick={onClose}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:text-primary"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <form onSubmit={onSubmit} className="space-y-6 px-8 py-8">
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-on-surface">条码 *</span>
-              <input
-                required
-                value={form.barcode}
-                onChange={(event) => onChange("barcode", event.target.value)}
-                className={cn(
-                  "w-full rounded-2xl border bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15",
-                  barcodeError ? "border-red-300" : "border-slate-200",
-                )}
-                placeholder="输入唯一条码"
-              />
-              {barcodeError && <div className="text-xs font-semibold text-red-500">{barcodeError}</div>}
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-on-surface">货物名称 *</span>
-              <input
-                required
-                value={form.product_name}
-                onChange={(event) => onChange("product_name", event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                placeholder="输入货物名称"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-on-surface">厂商 *</span>
-              <input
-                required
-                value={form.manufacturer}
-                onChange={(event) => onChange("manufacturer", event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                placeholder="输入厂商名称"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-on-surface">保质期天数 *</span>
-              <input
-                required
-                type="number"
-                min={1}
-                step={1}
-                value={form.shelf_life_days}
-                onChange={(event) => onChange("shelf_life_days", event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                placeholder="输入正整数"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-on-surface">分类</span>
-              <input
-                value={form.category}
-                onChange={(event) => onChange("category", event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                placeholder="例如：乳制品"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-on-surface">库位</span>
-              <input
-                value={form.location}
-                onChange={(event) => onChange("location", event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                placeholder="例如：冷库 A-01"
-              />
-            </label>
-
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-sm font-semibold text-on-surface">单位</span>
-              <input
-                value={form.unit}
-                onChange={(event) => onChange("unit", event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                placeholder="例如：盒 / 袋 / 瓶"
-              />
-            </label>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 border-t border-surface-container-high pt-6">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
+          />
+          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.section
+              initial={{ opacity: 0, scale: 0.96, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 24 }}
+              transition={{ type: "spring", stiffness: 280, damping: 26 }}
+              className="ambient-shadow pointer-events-auto relative w-full max-w-3xl overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
             >
-              取消
-            </button>
-            <button
-              type="submit"
-              className="rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
-            >
-              {product ? "保存修改" : "创建货物"}
-            </button>
+              <div className="flex items-start justify-between border-b border-surface-container-high px-8 py-6">
+                <div>
+                  <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
+                    {product ? "编辑货物" : "新增货物"}
+                  </h3>
+                  <p className="mt-1 text-sm text-on-surface-variant">维护货物主数据，更新后会立即反映在当前列表中。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:text-primary"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={onSubmit} className="space-y-6 px-8 py-8">
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className="text-sm font-semibold text-on-surface">条码 *</span>
+                    <input
+                      required
+                      value={form.barcode}
+                      onChange={(event) => onChange("barcode", event.target.value)}
+                      className={cn(
+                        "w-full rounded-2xl border bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15",
+                        barcodeError ? "border-red-300" : "border-slate-200",
+                      )}
+                      placeholder="输入唯一条码"
+                    />
+                    {barcodeError && <div className="text-xs font-semibold text-red-500">{barcodeError}</div>}
+                  </label>
+
+                  <label className="space-y-2">
+                    <span className="text-sm font-semibold text-on-surface">货物名称 *</span>
+                    <input
+                      required
+                      value={form.product_name}
+                      onChange={(event) => onChange("product_name", event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                      placeholder="输入货物名称"
+                    />
+                  </label>
+
+                  <label className="space-y-2">
+                    <span className="text-sm font-semibold text-on-surface">厂商 *</span>
+                    <input
+                      required
+                      value={form.manufacturer}
+                      onChange={(event) => onChange("manufacturer", event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                      placeholder="输入厂商名称"
+                    />
+                  </label>
+
+                  <label className="space-y-2">
+                    <span className="text-sm font-semibold text-on-surface">保质期天数 *</span>
+                    <input
+                      required
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={form.shelf_life_days}
+                      onChange={(event) => onChange("shelf_life_days", event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                      placeholder="输入正整数"
+                    />
+                  </label>
+
+                  <label className="space-y-2">
+                    <span className="text-sm font-semibold text-on-surface">分类</span>
+                    <input
+                      value={form.category}
+                      onChange={(event) => onChange("category", event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                      placeholder="例如：乳制品"
+                    />
+                  </label>
+
+                  <label className="space-y-2">
+                    <span className="text-sm font-semibold text-on-surface">库位</span>
+                    <input
+                      value={form.location}
+                      onChange={(event) => onChange("location", event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                      placeholder="例如：冷库 A-01"
+                    />
+                  </label>
+
+                  <label className="space-y-2 md:col-span-2">
+                    <span className="text-sm font-semibold text-on-surface">单位</span>
+                    <input
+                      value={form.unit}
+                      onChange={(event) => onChange("unit", event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                      placeholder="例如：盒 / 袋 / 瓶"
+                    />
+                  </label>
+                </div>
+
+                <div className="flex flex-col gap-3 border-t border-surface-container-high pt-6 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    {product ? (
+                      <button
+                        type="button"
+                        onClick={onDelete}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-red-300 px-5 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
+                      >
+                        <Trash2 size={16} />
+                        删除货物
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
+                    >
+                      {product ? "保存修改" : "创建货物"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </motion.section>
           </div>
-        </form>
-      </div>
-    </div>
+        </>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -456,7 +488,14 @@ export const ProductManagementPage: React.FC = () => {
     }
 
     setProducts((currentProducts) => currentProducts.filter((product) => product.id !== productToDelete.id));
+    if (editingProduct?.id === productToDelete.id) {
+      closeFormModal();
+    }
     setProductToDelete(null);
+  };
+
+  const openDeleteConfirm = (product: Product) => {
+    setProductToDelete(product);
   };
 
   return (
@@ -552,7 +591,7 @@ export const ProductManagementPage: React.FC = () => {
 
         {pagedProducts.length > 0 ? (
           <>
-            <div className="overflow-x-auto">
+            <div>
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-surface-container-low/50">
@@ -572,37 +611,30 @@ export const ProductManagementPage: React.FC = () => {
                     <tr key={product.id} className="transition-colors hover:bg-surface-container-low/30">
                       <td className="px-8 py-5">
                         <div className="font-bold text-on-surface">{product.product_name}</div>
-                        <div className="mt-1 text-xs text-on-surface-variant">ID #{product.id}</div>
                       </td>
                       <td className="px-8 py-5 text-sm font-mono text-on-surface-variant">{product.barcode}</td>
                       <td className="px-8 py-5 text-sm text-on-surface-variant">{product.manufacturer}</td>
-                      <td className="px-8 py-5">
-                        <span className="rounded-full bg-surface-container-low px-3 py-1 text-xs font-semibold text-on-surface-variant">
-                          {normalizeText(product.category)}
-                        </span>
-                      </td>
+                      <td className="px-8 py-5 text-sm text-on-surface-variant">{normalizeText(product.category)}</td>
                       <td className="px-8 py-5 text-sm text-on-surface-variant">{normalizeText(product.location)}</td>
                       <td className="px-8 py-5 text-sm text-on-surface-variant">{normalizeText(product.unit)}</td>
                       <td className="px-8 py-5 text-sm font-semibold text-on-surface">{product.shelf_life_days} 天</td>
                       <td className="px-8 py-5 text-sm text-on-surface-variant">{formatDate(product.updated_at)}</td>
                       <td className="px-8 py-5">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(product)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-on-surface transition-colors hover:bg-surface-container-low"
-                          >
-                            <Pencil size={14} />
-                            编辑
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setProductToDelete(product)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50"
-                          >
-                            <Trash2 size={14} />
-                            删除
-                          </button>
+                        <div className="flex items-center justify-end">
+                          <div className="group relative">
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(product)}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-xs font-bold text-on-surface transition-all hover:border-primary/20 hover:bg-surface-container-low"
+                              aria-label={`编辑 ${product.product_name}`}
+                              title={`编辑 ${product.product_name}`}
+                            >
+                              <Pencil size={14} className="shrink-0" />
+                            </button>
+                            <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 min-w-max -translate-x-1/2 translate-y-2 whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-lg transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+                              编辑
+                            </span>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -642,6 +674,7 @@ export const ProductManagementPage: React.FC = () => {
         barcodeError={barcodeError}
         onChange={handleFormChange}
         onClose={closeFormModal}
+        onDelete={() => editingProduct && openDeleteConfirm(editingProduct)}
         onSubmit={handleSubmit}
       />
 

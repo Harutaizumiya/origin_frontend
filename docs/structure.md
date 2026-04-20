@@ -368,6 +368,26 @@ AnalyticsPage
 - 将共享类型逐步统一到 `src/types/`，页面私有类型保留在局部模块内。
 - 统一文件编码为 UTF-8，优先修复页面文字乱码问题。
 
+### 11.4 弹窗动画实现
+
+- 当前项目的详情弹窗动画基于 `motion/react` 实现，核心模式是 `AnimatePresence + motion.div + motion.section`。
+- 背景遮罩层使用 `motion.div` 做透明度过渡：
+  - `initial: { opacity: 0 }`
+  - `animate: { opacity: 1 }`
+  - `exit: { opacity: 0 }`
+- 弹窗主体使用 `motion.section` 做统一的展开/收起动画：
+  - `initial: { opacity: 0, scale: 0.96, y: 24 }`
+  - `animate: { opacity: 1, scale: 1, y: 0 }`
+  - `exit: { opacity: 0, scale: 0.96, y: 24 }`
+  - `transition: { type: "spring", stiffness: 280, damping: 26 }`
+- `InventoryBatchDetailModal.tsx` 是这套动画的原始实现位置，用于库存卡片点击后的详情弹窗。
+- `ProductManagementPage.tsx` 中的货物编辑详情页已经复用同一套动画参数和结构，保证两个弹出页面在视觉节奏上保持一致。
+- 这套实现的交互效果是：
+  - 点击入口按钮后，遮罩先淡入
+  - 弹窗主体从轻微缩小、下移的状态弹性展开
+  - 关闭时按相同路径反向收起
+- 如果后续新增新的详情弹窗或管理弹窗，应优先沿用这一套动画参数，而不是重新定义不同节奏的开合效果。
+
 ## 12. 一句话总结
 
 这是一个结构清晰的 React 中后台原型项目：布局和展示层拆分已经比较合理，但业务数据和页面逻辑仍主要堆在页面文件中，下一步的结构优化重点应该放在“按业务域拆模块”和“补齐数据访问层”。
