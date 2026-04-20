@@ -29,7 +29,7 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
   return (
     <article
       className={cn(
-        "group relative flex aspect-square min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white px-3 pb-2.5 pt-3 transition-all hover:-translate-y-1 cursor-pointer",
+        "group relative flex aspect-square min-w-0 w-full max-w-[360px] justify-self-start flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white px-3 pb-2.5 pt-3 transition-all hover:-translate-y-1 cursor-pointer",
       )}
     >
       {isCritical && (

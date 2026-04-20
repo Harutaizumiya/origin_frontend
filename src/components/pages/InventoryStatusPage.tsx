@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AppstoreOutlined,
   BarChartOutlined,
@@ -273,7 +273,11 @@ const INVENTORY_DETAIL_MAP: Record<string, InventoryBatchDetail> = {
   },
 };
 
-const PAGE_SIZE = 6;
+const LIST_PAGE_SIZE = 6;
+const CARD_MIN_WIDTH = 280;
+const CARD_MAX_WIDTH = 360;
+const CARD_GRID_GAP = 16;
+const CARD_ROWS_PER_PAGE = 2;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const HEALTH_PRIORITY: Record<InventoryHealth, number> = {
   critical: 0,
@@ -374,6 +378,15 @@ function sortInventoryItems(items: InventoryRecord[]) {
   });
 }
 
+function getCardPageSize(containerWidth: number) {
+  if (containerWidth <= 0) {
+    return LIST_PAGE_SIZE;
+  }
+
+  const columnCount = Math.max(1, Math.floor((containerWidth + CARD_GRID_GAP) / (CARD_MIN_WIDTH + CARD_GRID_GAP)));
+  return columnCount * CARD_ROWS_PER_PAGE;
+}
+
 function InventoryOverviewCards() {
   const itemMetrics = INVENTORY_ITEMS.map((item) => getShelfLifeMetrics(item));
   const totalQuantity = INVENTORY_ITEMS.reduce((sum, item) => sum + parseQuantity(item.quantity), 0);
@@ -427,13 +440,19 @@ function InventoryOverviewCards() {
 
 function InventoryCardView({
   items,
+  gridRef,
   onOpenDetail,
 }: {
   items: InventoryRecord[];
+  gridRef?: React.Ref<HTMLDivElement>;
   onOpenDetail: (item: InventoryRecord) => void;
 }) {
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))" }}>
+    <div
+      ref={gridRef}
+      className="grid justify-items-start gap-4"
+      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${CARD_MIN_WIDTH}px), 1fr))` }}
+    >
       {items.map((item) => {
         const metrics = getShelfLifeMetrics(item);
         const meta = getHealthMeta(metrics.health);
@@ -615,8 +634,10 @@ function Pagination({
 export const InventoryStatusPage: React.FC = () => {
   const [view, setView] = useState<InventoryView>("card");
   const [currentPage, setCurrentPage] = useState(1);
+  const [cardPageSize, setCardPageSize] = useState(LIST_PAGE_SIZE);
   const [selectedItem, setSelectedItem] = useState<InventoryRecord | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const cardGridRef = useRef<HTMLDivElement | null>(null);
   const sortedItems = useMemo(() => sortInventoryItems(INVENTORY_ITEMS), []);
 
   const selectedMetrics = useMemo(
@@ -628,9 +649,10 @@ export const InventoryStatusPage: React.FC = () => {
     [selectedItem],
   );
 
-  const totalPages = Math.ceil(sortedItems.length / PAGE_SIZE);
-  const startIndex = (currentPage - 1) * PAGE_SIZE;
-  const pagedItems = sortedItems.slice(startIndex, startIndex + PAGE_SIZE);
+  const pageSize = view === "card" ? cardPageSize : LIST_PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const pagedItems = sortedItems.slice(startIndex, startIndex + pageSize);
 
   const openDetail = (item: InventoryRecord) => {
     setSelectedItem(item);
@@ -665,6 +687,37 @@ export const InventoryStatusPage: React.FC = () => {
       return () => window.clearTimeout(timer);
     }
   }, [isDetailOpen]);
+
+  useEffect(() => {
+    if (view !== "card") {
+      return;
+    }
+
+    const container = cardGridRef.current;
+    if (!container) {
+      return;
+    }
+
+    const updatePageSize = () => {
+      const nextPageSize = getCardPageSize(container.clientWidth);
+      setCardPageSize((previousPageSize) => (previousPageSize === nextPageSize ? previousPageSize : nextPageSize));
+    };
+
+    updatePageSize();
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(updatePageSize);
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [view]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   return (
     <>
@@ -705,7 +758,7 @@ export const InventoryStatusPage: React.FC = () => {
 
         <div className="p-8">
           {view === "card" ? (
-            <InventoryCardView items={pagedItems} onOpenDetail={openDetail} />
+            <InventoryCardView items={pagedItems} gridRef={cardGridRef} onOpenDetail={openDetail} />
           ) : (
             <InventoryListView items={pagedItems} onOpenDetail={openDetail} />
           )}
