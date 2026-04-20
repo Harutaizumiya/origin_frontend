@@ -1,5 +1,4 @@
 import React from "react";
-import { ArrowRightOutlined } from "@ant-design/icons";
 import { cn } from "../../lib/utils";
 import type {
   InventoryHealthMeta,
@@ -25,16 +24,28 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
   onOpenDetail,
 }) => {
   const isCritical = metrics.health === "critical";
+  const openDetail = () => onOpenDetail(item);
+
+  const handleKeyDown: React.KeyboardEventHandler<HTMLElement> = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openDetail();
+    }
+  };
 
   return (
     <article
+      role="button"
+      tabIndex={0}
+      onClick={openDetail}
+      onKeyDown={handleKeyDown}
       className={cn(
-        "group relative flex aspect-square min-w-0 w-full max-w-[360px] justify-self-start flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white px-3 pb-2.5 pt-3 transition-all hover:-translate-y-1 cursor-pointer",
+        "group relative flex min-h-[312px] min-w-0 w-full max-w-[360px] justify-self-start flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white px-4 pb-4 pt-4 transition-all hover:-translate-y-1 cursor-pointer sm:min-h-[332px] sm:px-5 sm:pb-5 sm:pt-5",
       )}
     >
       {isCritical && (
         <div
-        className="pointer-events-none absolute rounded-3xl inset-[-1px] border-3 border-red-400 animate-pulse shadow-[inset_0_0_10px_rgba(239,68,68,0.2)]"
+          className="pointer-events-none absolute inset-[-1px] rounded-3xl border-3 border-red-400 shadow-[inset_0_0_10px_rgba(239,68,68,0.2)] animate-pulse"
           style={{ animationDuration: "2.5s" }}
         />
       )}
@@ -43,23 +54,23 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
         className={cn("absolute inset-x-0 bottom-0 h-1.5", meta.lineClassName)}
       />
 
-      <div className="mb-2 flex items-start justify-between gap-2">
+      <div className="mb-2.5 flex items-start justify-between gap-2.5 sm:mb-3 sm:gap-3">
         <div className="min-w-0">
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-semibold text-slate-400 sm:text-[10px]">
             <span>数量 {formatQuantity(item.quantity)}</span>
             <span className="text-slate-300">|</span>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px]">
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] sm:text-[10px]">
               {item.category}
             </span>
           </div>
-          <h3 className="line-clamp-2 text-[15px] font-semibold leading-5 text-slate-900">
+          <h3 className="line-clamp-2 text-[14px] font-semibold leading-5 text-slate-900 sm:text-[15px]">
             {item.productName}
           </h3>
         </div>
 
         <span
           className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold",
+            "inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[8px] font-semibold sm:text-[9px]",
             meta.tagClassName,
           )}
         >
@@ -68,17 +79,17 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
         </span>
       </div>
 
-      <div className="mb-2 flex flex-wrap items-center gap-1.5 text-slate-500">
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px]">
+      <div className="mb-2.5 flex flex-wrap items-center gap-2 text-slate-500 sm:mb-3">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[9px] sm:text-[10px]">
           {item.manufacturer}
         </span>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px]">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[9px] sm:text-[10px]">
           {item.location}
         </span>
       </div>
 
-      <div className="mb-2 rounded-2xl border border-slate-100 bg-slate-50/80 p-2.5">
-        <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500">
+      <div className="mb-2.5 rounded-2xl border border-slate-100 bg-slate-50/80 p-3 sm:mb-3 sm:p-3.5">
+        <div className="mb-2 flex items-center justify-between text-[10px] text-slate-500 sm:text-[11px]">
           <span>剩余效期</span>
           <span className="font-semibold text-slate-700">
             {metrics.percent}%
@@ -90,54 +101,44 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
             style={{ width: `${metrics.percent}%` }}
           />
         </div>
-        <div className="mt-1.5 flex justify-between gap-2">
+        <div className="mt-2 flex justify-between gap-3">
           <div>
-            <div className="text-[10px] text-slate-400">生产日期</div>
-            <div className="mt-0.5 text-[12px] font-semibold text-slate-900">
+            <div className="text-[9px] text-slate-400 sm:text-[10px]">
+              生产日期
+            </div>
+            <div className="mt-1 text-[11px] font-semibold text-slate-900 sm:text-[12px]">
               {formatDate(item.manufactureDate)}
             </div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] text-slate-400">到期日期</div>
-            <div className="mt-0.5 text-[12px] font-semibold text-slate-900">
+            <div className="text-[9px] text-slate-400 sm:text-[10px]">
+              到期日期
+            </div>
+            <div className="mt-1 text-[11px] font-semibold text-slate-900 sm:text-[12px]">
               {formatDate(item.expireDate)}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="mb-2 grid grid-cols-2 gap-2 text-slate-500">
+      <div className="grid grid-cols-2 gap-3 text-slate-500">
         <div>
-          <div className="mb-0.5 text-[10px] text-slate-400">收货日期</div>
-          <div className="text-[12px] font-semibold text-slate-900">
+          <div className="mb-1 text-[9px] text-slate-400 sm:text-[10px]">
+            收货日期
+          </div>
+          <div className="text-[11px] font-semibold text-slate-900 sm:text-[12px]">
             {formatDate(item.receivedDate)}
           </div>
         </div>
         <div className="text-right">
-          <div className="mb-0.5 text-[10px] text-slate-400">剩余天数</div>
-          <div className="text-[12px] font-semibold text-slate-900">
+          <div className="mb-1 text-[9px] text-slate-400 sm:text-[10px]">
+            剩余天数
+          </div>
+          <div className="text-[11px] font-semibold text-slate-900 sm:text-[12px]">
             {metrics.remainingDays} 天
           </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2 text-left transition-colors hover:text-primary cursor-pointer"
-      >
-        <div className="min-w-0">
-          <div className="truncate text-[12px] font-semibold text-slate-900">
-            {item.location}
-          </div>
-          <div className="mt-0.5 text-[10px] text-slate-500">查看批次详情</div>
-        </div>
-        <span
-          className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-slate-900 text-[12px] text-white transition-all hover:bg-primary"
-          onClick={() => onOpenDetail(item)}
-        >
-          <ArrowRightOutlined />
-        </span>
-      </button>
     </article>
   );
 };

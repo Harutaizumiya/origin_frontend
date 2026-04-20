@@ -1,5 +1,5 @@
 import React from "react";
-import { MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined } from "@ant-design/icons";
+import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import { SidebarMenu } from "../navigation/SidebarMenu";
 import { ProfileWidget } from "../navigation/ProfileWidget";
 
@@ -20,9 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => (
       <div className={collapsed ? "flex items-center justify-center" : "flex items-center justify-between gap-3"}>
         <div className="min-w-0">
           <h1 className="font-headline text-lg font-bold tracking-tighter text-primary">{collapsed ? "" : "Origin"}</h1>
-          {!collapsed && (
-            <p className="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant">开发版</p>
-          )}
+          {!collapsed && <p className="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant">开发版</p>}
         </div>
         <button
           type="button"
@@ -37,20 +35,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => (
     </div>
 
     <SidebarMenu collapsed={collapsed} />
-
-    <div className={collapsed ? "mt-auto px-3" : "mt-auto px-6"}>
-      <button
-        type="button"
-        className={
-          collapsed
-            ? "flex w-full items-center justify-center rounded-2xl p-3 text-slate-600 transition-colors hover:bg-slate-200 hover:text-primary"
-            : "flex w-full items-center gap-3 rounded-2xl p-3 text-slate-600 transition-colors hover:bg-slate-200 hover:text-primary"
-        }
-      >
-        <SettingOutlined className="text-xl transition-transform duration-300 ease-in-out hover:rotate-90" />
-        {!collapsed && <span className="text-sm font-medium">设置</span>}
-      </button>
-    </div>
 
     <ProfileWidget collapsed={collapsed} />
   </aside>

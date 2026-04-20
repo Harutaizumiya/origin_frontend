@@ -5,6 +5,7 @@ import { AnalyticsPage } from "./components/pages/AnalyticsPage";
 import { DashboardPage } from "./components/pages/DashboardPage";
 import { InventoryStatusPage } from "./components/pages/InventoryStatusPage";
 import { ProductManagementPage } from "./components/pages/ProductManagementPage";
+import { SettingsPage } from "./components/pages/SettingsPage";
 
 function LayoutWrapper() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/products" element={<ProductManagementPage />} />
           <Route path="/inventory-status" element={<InventoryStatusPage />} />
           <Route path="/analysis" element={<AnalyticsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
