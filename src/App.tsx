@@ -4,6 +4,7 @@ import { MainLayout } from "./components/layout/MainLayout";
 import { AnalyticsPage } from "./components/pages/AnalyticsPage";
 import { DashboardPage } from "./components/pages/DashboardPage";
 import { InventoryStatusPage } from "./components/pages/InventoryStatusPage";
+import { ProductManagementPage } from "./components/pages/ProductManagementPage";
 
 function LayoutWrapper() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
       <Routes>
         <Route element={<LayoutWrapper />}>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/products" element={<ProductManagementPage />} />
           <Route path="/inventory-status" element={<InventoryStatusPage />} />
           <Route path="/analysis" element={<AnalyticsPage />} />
         </Route>
