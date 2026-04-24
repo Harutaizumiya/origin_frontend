@@ -27,3 +27,10 @@ export interface ProductFilters {
   unit: string;
   query: string;
 }
+
+export interface ProductListResult {
+  items: Product[];
+  page: number;
+  size: number;
+  total: number;
+}

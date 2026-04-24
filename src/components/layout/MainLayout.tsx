@@ -7,7 +7,8 @@ interface MainLayoutProps {
   children: React.ReactNode;
 }
 
-const SIDEBAR_ANIMATION_MS = 300;
+const SIDEBAR_ANIMATION_MS = 500;
+const SIDEBAR_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -34,7 +35,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     <LayoutProvider value={{ sidebarCollapsed: collapsed, isSidebarAnimating }}>
       <div className="flex min-h-screen bg-surface">
         <Sidebar collapsed={collapsed} onToggle={handleToggle} />
-        <div className={collapsed ? "ml-20 flex-1 transition-all duration-300" : "ml-64 flex-1 transition-all duration-300"}>
+        <div
+          style={{ marginLeft: collapsed ? 80 : 256, transitionTimingFunction: SIDEBAR_EASING }}
+          className="flex-1 transition-[margin-left] duration-500 will-change-[margin-left]"
+        >
           <Header />
           <main className="p-8 pb-24">{children}</main>
         </div>

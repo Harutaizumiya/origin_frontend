@@ -11,6 +11,8 @@ interface SidebarItemProps {
   active?: boolean;
 }
 
+const SIDEBAR_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
+
 export const SidebarItem: React.FC<SidebarItemProps> = ({ icon: Icon, label, to, collapsed, active = false }) => {
   const location = useLocation();
   const isActive = active || location.pathname === to;
@@ -25,9 +27,10 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({ icon: Icon, label, to,
           marginRight: collapsed ? "0.5rem" : "0",
           borderRadius: "9999px",
         }}
-        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
-          collapsed ? "flex items-center justify-center px-3 py-3" : "flex items-center gap-3 px-4 py-3",
+          "flex items-center px-4 py-3",
+          collapsed ? "justify-center" : "gap-3",
           isActive
             ? "font-bold text-primary shadow-sm"
             : "text-on-surface-variant hover:bg-surface-container-low hover:text-primary",
@@ -40,31 +43,31 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({ icon: Icon, label, to,
             opacity: isActive ? 1 : 0,
             width: isActive ? "3px" : "0",
           }}
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           className="absolute left-0 top-1/2 h-6 -translate-y-1/2 rounded-r-full bg-primary"
         />
 
         <motion.div
           initial={false}
           animate={{
-            scale: isActive ? 1.1 : 1,
+            scale: isActive ? 1.08 : 1,
             color: isActive ? "var(--color-primary)" : "var(--color-on-surface-variant)",
           }}
-          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          className="shrink-0"
         >
-          <Icon size={20} className={cn(isActive ? "text-primary" : "text-on-surface-variant group-hover:text-primary")} />
+          <Icon size={20} className={cn(isActive ? "text-primary" : "text-on-surface-variant")} />
         </motion.div>
 
-        {!collapsed && (
-          <motion.span
-            initial={false}
-            animate={{ x: isActive ? 4 : 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            className="font-headline text-sm tracking-tight"
-          >
-            {label}
-          </motion.span>
-        )}
+        <span
+          className={cn(
+            "overflow-hidden whitespace-nowrap font-headline text-sm tracking-tight transition-[max-width,opacity,transform] duration-500",
+            collapsed ? "max-w-0 -translate-x-2 opacity-0" : "max-w-[120px] translate-x-0 opacity-100",
+          )}
+          style={{ transitionTimingFunction: SIDEBAR_EASING }}
+        >
+          {label}
+        </span>
       </motion.div>
     </Link>
   );

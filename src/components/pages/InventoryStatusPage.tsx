@@ -528,7 +528,7 @@ function NewBatchModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 24 }}
               transition={{ type: "spring", stiffness: 280, damping: 26 }}
-              className="ambient-shadow pointer-events-auto relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
+              className="ambient-shadow pointer-events-auto relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
             >
               <div className="flex items-start justify-between border-b border-surface-container-high p-8 md:p-10">
                 <div>
@@ -546,7 +546,7 @@ function NewBatchModal({
                 </button>
               </div>
 
-              <div className="flex-1 space-y-8 overflow-y-auto p-8 md:p-10">
+              <div className="grid flex-1 gap-6 overflow-y-auto p-8 md:p-10 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] xl:items-start">
                 <section className="rounded-3xl border border-slate-200 bg-slate-50/80 p-6">
                   <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -606,7 +606,7 @@ function NewBatchModal({
                   <div className="mt-5 space-y-3">
                     <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-on-surface-variant">查询结果</div>
                     {searchResults.length > 0 ? (
-                      <div className="grid gap-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
                         {searchResults.map((product) => (
                           <button
                             key={product.id}
@@ -634,7 +634,7 @@ function NewBatchModal({
                   </div>
                 </section>
 
-                <section className={cn("rounded-3xl border p-6 transition-all", selectedProduct ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50/70 opacity-70")}>
+                <section className={cn("rounded-3xl border p-6 transition-all xl:sticky xl:top-0", selectedProduct ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50/70 opacity-70")}>
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <h4 className="font-headline text-lg font-bold text-on-surface">批次信息</h4>

@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ChevronLeft,
   ChevronRight,
+  LoaderCircle,
   PackageSearch,
   Pencil,
   Plus,
@@ -11,8 +12,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { ApiClientError, createProduct, deleteProduct, listProductCategories, listProducts, updateProduct } from "../../api";
 import { cn } from "../../lib/utils";
-import { INITIAL_PRODUCTS } from "./ProductManagement.mock";
 import type { Product, ProductFilters, ProductFormInput } from "./ProductManagement.types";
 
 const PAGE_SIZE = 8;
@@ -49,6 +50,27 @@ function getUniqueOptions(values: Array<string | null>) {
   return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))).sort(
     (left, right) => left.localeCompare(right, "zh-CN"),
   );
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof ApiClientError) {
+    switch (error.message) {
+      case "validation_error":
+        return "请求参数不符合后端校验规则。";
+      case "conflict":
+        return "数据冲突，请检查条码是否重复。";
+      case "not_found":
+        return "目标数据不存在，可能已被其他人删除。";
+      default:
+        return `请求失败：${error.message}`;
+    }
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "请求失败，请稍后重试。";
 }
 
 function Pagination({
@@ -109,6 +131,8 @@ function ProductFormModal({
   product,
   form,
   barcodeError,
+  submitError,
+  submitting,
   onChange,
   onClose,
   onDelete,
@@ -118,6 +142,8 @@ function ProductFormModal({
   product: Product | null;
   form: ProductFormInput;
   barcodeError: string | null;
+  submitError: string | null;
+  submitting: boolean;
   onChange: (field: keyof ProductFormInput, value: string) => void;
   onClose: () => void;
   onDelete: () => void;
@@ -132,7 +158,7 @@ function ProductFormModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[3px]"
-            onClick={onClose}
+            onClick={submitting ? undefined : onClose}
           />
           <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.section
@@ -147,12 +173,15 @@ function ProductFormModal({
                   <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
                     {product ? "编辑货物" : "新增货物"}
                   </h3>
-                  <p className="mt-1 text-sm text-on-surface-variant">维护货物主数据，更新后会立即反映在当前列表中。</p>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    当前表单已切换到 Django 接口，提交会直接写入后端数据。
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:text-primary"
+                  disabled={submitting}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <X size={18} />
                 </button>
@@ -172,7 +201,7 @@ function ProductFormModal({
                       )}
                       placeholder="输入唯一条码"
                     />
-                    {barcodeError && <div className="text-xs font-semibold text-red-500">{barcodeError}</div>}
+                    {barcodeError ? <div className="text-xs font-semibold text-red-500">{barcodeError}</div> : null}
                   </label>
 
                   <label className="space-y-2">
@@ -237,10 +266,16 @@ function ProductFormModal({
                       value={form.unit}
                       onChange={(event) => onChange("unit", event.target.value)}
                       className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                      placeholder="例如：盒 / 袋 / 瓶"
+                      placeholder="例如：箱 / 瓶 / 包"
                     />
                   </label>
                 </div>
+
+                {submitError ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                    {submitError}
+                  </div>
+                ) : null}
 
                 <div className="flex flex-col gap-3 border-t border-surface-container-high pt-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -248,7 +283,8 @@ function ProductFormModal({
                       <button
                         type="button"
                         onClick={onDelete}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-red-300 px-5 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
+                        disabled={submitting}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-red-300 px-5 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Trash2 size={16} />
                         删除货物
@@ -259,14 +295,17 @@ function ProductFormModal({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
+                      disabled={submitting}
+                      className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       取消
                     </button>
                     <button
                       type="submit"
-                      className="rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
+                      disabled={submitting}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
                     >
+                      {submitting ? <LoaderCircle size={16} className="animate-spin" /> : null}
                       {product ? "保存修改" : "创建货物"}
                     </button>
                   </div>
@@ -282,10 +321,12 @@ function ProductFormModal({
 
 function DeleteConfirmModal({
   product,
+  deleting,
   onCancel,
   onConfirm,
 }: {
   product: Product | null;
+  deleting: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -301,21 +342,24 @@ function DeleteConfirmModal({
         </div>
         <h3 className="text-center font-headline text-2xl font-extrabold tracking-tight text-on-surface">删除货物</h3>
         <p className="mt-3 text-center text-sm leading-6 text-on-surface-variant">
-          确认删除 <span className="font-bold text-on-surface">{product.product_name}</span> 吗？此操作会立即从当前列表中移除该货物。
+          确认删除 <span className="font-bold text-on-surface">{product.product_name}</span> 吗？该操作会直接调用后端删除接口。
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
+            disabled={deleting}
+            className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-50"
           >
             取消
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-2xl border border-red-300 px-5 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-2xl border border-red-300 px-5 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
+            {deleting ? <LoaderCircle size={16} className="animate-spin" /> : null}
             确认删除
           </button>
         </div>
@@ -325,7 +369,8 @@ function DeleteConfirmModal({
 }
 
 export const ProductManagementPage: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categoryOptionsFromApi, setCategoryOptionsFromApi] = useState<string[]>([]);
   const [filters, setFilters] = useState<ProductFilters>({
     category: "",
     location: "",
@@ -337,28 +382,88 @@ export const ProductManagementPage: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [barcodeError, setBarcodeError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [form, setForm] = useState<ProductFormInput>(EMPTY_FORM);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const deferredQuery = useDeferredValue(filters.query);
 
-  const categoryOptions = useMemo(() => getUniqueOptions(products.map((product) => product.category)), [products]);
+  const fetchProducts = async (search: string) => {
+    const data = await listProducts({
+      search,
+      page: 1,
+      size: 100,
+    });
+    setProducts(data.items);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      try {
+        if (!cancelled) {
+          setIsLoading(true);
+          setErrorMessage(null);
+        }
+
+        const [productData, categoryData] = await Promise.all([
+          listProducts({
+            search: deferredQuery.trim(),
+            page: 1,
+            size: 100,
+          }),
+          listProductCategories(),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setProducts(productData.items);
+        setCategoryOptionsFromApi(categoryData);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setErrorMessage(getErrorMessage(error));
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deferredQuery]);
+
+  const categoryOptions = useMemo(
+    () => getUniqueOptions([...categoryOptionsFromApi, ...products.map((product) => product.category)]),
+    [categoryOptionsFromApi, products],
+  );
   const locationOptions = useMemo(() => getUniqueOptions(products.map((product) => product.location)), [products]);
   const unitOptions = useMemo(() => getUniqueOptions(products.map((product) => product.unit)), [products]);
 
   const filteredProducts = useMemo(() => {
-    const query = filters.query.trim().toLowerCase();
-
     return products.filter((product) => {
       const matchesCategory = !filters.category || product.category === filters.category;
       const matchesLocation = !filters.location || product.location === filters.location;
       const matchesUnit = !filters.unit || product.unit === filters.unit;
       const matchesQuery =
-        !query ||
-        normalizeSearchValue(product.product_name).includes(query) ||
-        normalizeSearchValue(product.barcode).includes(query) ||
-        normalizeSearchValue(product.manufacturer).includes(query);
+        !deferredQuery.trim() ||
+        normalizeSearchValue(product.product_name).includes(deferredQuery.trim().toLowerCase()) ||
+        normalizeSearchValue(product.barcode).includes(deferredQuery.trim().toLowerCase()) ||
+        normalizeSearchValue(product.manufacturer).includes(deferredQuery.trim().toLowerCase());
 
       return matchesCategory && matchesLocation && matchesUnit && matchesQuery;
     });
-  }, [filters, products]);
+  }, [deferredQuery, filters.category, filters.location, filters.unit, products]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
   const startIndex = (currentPage - 1) * PAGE_SIZE;
@@ -376,12 +481,14 @@ export const ProductManagementPage: React.FC = () => {
     setEditingProduct(null);
     setForm(EMPTY_FORM);
     setBarcodeError(null);
+    setSubmitError(null);
     setIsFormOpen(true);
   };
 
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
     setBarcodeError(null);
+    setSubmitError(null);
     setForm({
       barcode: product.barcode,
       product_name: product.product_name,
@@ -394,11 +501,19 @@ export const ProductManagementPage: React.FC = () => {
     setIsFormOpen(true);
   };
 
-  const closeFormModal = () => {
+  const resetFormModal = () => {
     setIsFormOpen(false);
     setEditingProduct(null);
     setBarcodeError(null);
+    setSubmitError(null);
     setForm(EMPTY_FORM);
+  };
+
+  const closeFormModal = () => {
+    if (isSubmitting) {
+      return;
+    }
+    resetFormModal();
   };
 
   const handleFormChange = (field: keyof ProductFormInput, value: string) => {
@@ -406,6 +521,7 @@ export const ProductManagementPage: React.FC = () => {
     if (field === "barcode") {
       setBarcodeError(null);
     }
+    setSubmitError(null);
   };
 
   const handleFilterChange = (field: keyof ProductFilters, value: string) => {
@@ -421,7 +537,17 @@ export const ProductManagementPage: React.FC = () => {
     });
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const reloadAfterMutation = async () => {
+    await fetchProducts(filters.query.trim());
+    try {
+      const categories = await listProductCategories();
+      setCategoryOptionsFromApi(categories);
+    } catch {
+      // Keep the current options if category refresh fails.
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!form.barcode.trim() || !form.product_name.trim() || !form.manufacturer.trim() || !form.shelf_life_days.trim()) {
@@ -430,6 +556,7 @@ export const ProductManagementPage: React.FC = () => {
 
     const shelfLife = Number(form.shelf_life_days);
     if (!Number.isInteger(shelfLife) || shelfLife <= 0) {
+      setSubmitError("保质期天数必须是大于 0 的整数。");
       return;
     }
 
@@ -443,55 +570,60 @@ export const ProductManagementPage: React.FC = () => {
       return;
     }
 
-    const timestamp = new Date().toISOString();
+    setIsSubmitting(true);
+    setSubmitError(null);
+    setBarcodeError(null);
 
-    if (editingProduct) {
-      const nextProduct: Product = {
-        ...editingProduct,
+    try {
+      const payload = {
         barcode: normalizedBarcode,
         product_name: form.product_name.trim(),
         shelf_life_days: shelfLife,
-        location: form.location.trim() || null,
-        category: form.category.trim() || null,
-        unit: form.unit.trim() || null,
+        location: form.location,
+        category: form.category,
+        unit: form.unit,
         manufacturer: form.manufacturer.trim(),
-        updated_at: timestamp,
       };
 
-      setProducts((currentProducts) =>
-        currentProducts.map((product) => (product.id === editingProduct.id ? nextProduct : product)),
-      );
-    } else {
-      const nextId = products.reduce((highest, product) => Math.max(highest, product.id), 0) + 1;
-      const nextProduct: Product = {
-        id: nextId,
-        barcode: normalizedBarcode,
-        product_name: form.product_name.trim(),
-        shelf_life_days: shelfLife,
-        location: form.location.trim() || null,
-        category: form.category.trim() || null,
-        unit: form.unit.trim() || null,
-        manufacturer: form.manufacturer.trim(),
-        created_at: timestamp,
-        updated_at: timestamp,
-      };
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, payload);
+      } else {
+        await createProduct(payload);
+      }
 
-      setProducts((currentProducts) => [nextProduct, ...currentProducts]);
+      await reloadAfterMutation();
+      resetFormModal();
+    } catch (error) {
+      if (error instanceof ApiClientError && error.message === "conflict") {
+        setBarcodeError("条码已存在，请使用唯一条码。");
+      } else {
+        setSubmitError(getErrorMessage(error));
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-
-    closeFormModal();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!productToDelete) {
       return;
     }
 
-    setProducts((currentProducts) => currentProducts.filter((product) => product.id !== productToDelete.id));
-    if (editingProduct?.id === productToDelete.id) {
-      closeFormModal();
+    setIsDeleting(true);
+    setErrorMessage(null);
+
+    try {
+      await deleteProduct(productToDelete.id);
+      await reloadAfterMutation();
+      if (editingProduct?.id === productToDelete.id) {
+        closeFormModal();
+      }
+      setProductToDelete(null);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsDeleting(false);
     }
-    setProductToDelete(null);
   };
 
   const openDeleteConfirm = (product: Product) => {
@@ -503,7 +635,7 @@ export const ProductManagementPage: React.FC = () => {
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">货物管理</h2>
-          <p className="mt-1 text-on-surface-variant">维护产品主数据，支持查询、筛选、新增、编辑与删除货物信息。</p>
+          <p className="mt-1 text-on-surface-variant">当前页面已接入 Django `products` 接口，支持查询、新增、编辑与删除。</p>
         </div>
         <button
           type="button"
@@ -577,19 +709,35 @@ export const ProductManagementPage: React.FC = () => {
         </div>
       </section>
 
+      {errorMessage ? (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-600">
+          {errorMessage}
+        </div>
+      ) : null}
+
       <section className="ambient-shadow overflow-hidden rounded-3xl border border-surface-container/10 bg-surface-container-lowest">
         <div className="flex flex-col gap-3 border-b border-surface-container-high p-8 md:flex-row md:items-center md:justify-between">
           <div>
             <h3 className="font-headline text-xl font-bold text-on-surface">货物列表</h3>
-            <p className="mt-1 text-sm text-on-surface-variant">当前筛选结果共 {filteredProducts.length} 条货物记录。</p>
+            <p className="mt-1 text-sm text-on-surface-variant">
+              {isLoading ? "正在从后端拉取数据..." : `当前筛选结果共 ${filteredProducts.length} 条货物记录。`}
+            </p>
           </div>
           <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500">
-            <PackageSearch size={16} />
-            支持按名称、条码、厂商快速检索
+            {isLoading ? <LoaderCircle size={16} className="animate-spin" /> : <PackageSearch size={16} />}
+            接口来源：`/api/products`
           </div>
         </div>
 
-        {pagedProducts.length > 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center gap-4 px-8 py-20 text-center">
+            <LoaderCircle size={28} className="animate-spin text-on-surface-variant" />
+            <div>
+              <h4 className="text-lg font-bold text-on-surface">正在同步货物数据</h4>
+              <p className="mt-1 text-sm text-on-surface-variant">请确认 Django 服务已启动，并且 `VITE_API_BASE_URL` 配置正确。</p>
+            </div>
+          </div>
+        ) : pagedProducts.length > 0 ? (
           <>
             <div>
               <table className="w-full text-left">
@@ -672,13 +820,20 @@ export const ProductManagementPage: React.FC = () => {
         product={editingProduct}
         form={form}
         barcodeError={barcodeError}
+        submitError={submitError}
+        submitting={isSubmitting}
         onChange={handleFormChange}
         onClose={closeFormModal}
         onDelete={() => editingProduct && openDeleteConfirm(editingProduct)}
         onSubmit={handleSubmit}
       />
 
-      <DeleteConfirmModal product={productToDelete} onCancel={() => setProductToDelete(null)} onConfirm={handleDelete} />
+      <DeleteConfirmModal
+        product={productToDelete}
+        deleting={isDeleting}
+        onCancel={() => (isDeleting ? undefined : setProductToDelete(null))}
+        onConfirm={handleDelete}
+      />
     </>
   );
 };

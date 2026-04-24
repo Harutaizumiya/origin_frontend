@@ -1,5 +1,6 @@
 import React from "react";
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
+import { cn } from "../../lib/utils";
 import { SidebarMenu } from "../navigation/SidebarMenu";
 import { ProfileWidget } from "../navigation/ProfileWidget";
 
@@ -8,19 +9,24 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
+const SIDEBAR_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
+
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => (
   <aside
-    className={
-      collapsed
-        ? "fixed left-0 top-0 z-20 flex h-screen w-20 flex-col rounded-r-3xl bg-slate-100 py-6 shadow-xl transition-all duration-300"
-        : "fixed left-0 top-0 z-20 flex h-screen w-64 flex-col rounded-r-3xl bg-slate-100 py-6 shadow-xl transition-all duration-300"
-    }
+    style={{ width: collapsed ? 80 : 256, transitionTimingFunction: SIDEBAR_EASING }}
+    className="fixed left-0 top-0 z-20 flex h-screen flex-col rounded-r-3xl bg-slate-100 py-6 shadow-xl transition-[width] duration-500 will-change-[width]"
   >
-    <div className={collapsed ? "mb-8 px-3" : "mb-10 px-6"}>
-      <div className={collapsed ? "flex items-center justify-center" : "flex items-center justify-between gap-3"}>
-        <div className="min-w-0">
-          <h1 className="font-headline text-lg font-bold tracking-tighter text-primary">{collapsed ? "" : "Origin"}</h1>
-          {!collapsed && <p className="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant">开发版</p>}
+    <div className="mb-8 px-4 transition-[margin] duration-500" style={{ transitionTimingFunction: SIDEBAR_EASING }}>
+      <div className="flex items-center justify-between gap-3">
+        <div
+          className={cn(
+            "min-w-0 overflow-hidden transition-[max-width,opacity,transform] duration-500",
+            collapsed ? "max-w-0 -translate-x-2 opacity-0" : "max-w-[120px] translate-x-0 opacity-100",
+          )}
+          style={{ transitionTimingFunction: SIDEBAR_EASING }}
+        >
+          <h1 className="truncate font-headline text-lg font-bold tracking-tighter text-primary">Origin</h1>
+          <p className="truncate text-[10px] font-medium uppercase tracking-wider text-on-surface-variant">开发版</p>
         </div>
         <button
           type="button"
