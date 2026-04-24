@@ -12,63 +12,103 @@ interface SidebarItemProps {
 }
 
 const SIDEBAR_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
+const ICON_ANCHOR_LEFT = 26;
+const LABEL_LEFT = 58;
+const SIDEBAR_ANIMATION_DURATION = 0.5;
+const COLLAPSED_PILL_WIDTH = 56;
+const EXPANDED_PILL_WIDTH = 240;
 
-export const SidebarItem: React.FC<SidebarItemProps> = ({ icon: Icon, label, to, collapsed, active = false }) => {
+export const SidebarItem: React.FC<SidebarItemProps> = ({
+  icon: Icon,
+  label,
+  to,
+  collapsed,
+  active = false,
+}) => {
   const location = useLocation();
   const isActive = active || location.pathname === to;
 
   return (
-    <Link to={to} className="relative block">
-      <motion.div
-        initial={false}
-        animate={{
-          backgroundColor: isActive ? "rgba(255, 255, 255, 1)" : "transparent",
-          marginLeft: isActive && !collapsed ? "1rem" : isActive ? "0.5rem" : "0",
-          marginRight: collapsed ? "0.5rem" : "0",
-          borderRadius: "9999px",
-        }}
-        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        className={cn(
-          "flex items-center px-4 py-3",
-          collapsed ? "justify-center" : "gap-3",
-          isActive
-            ? "font-bold text-primary shadow-sm"
-            : "text-on-surface-variant hover:bg-surface-container-low hover:text-primary",
-        )}
-        title={collapsed ? label : undefined}
-      >
+    <Link to={to} className="group relative block px-2" title={collapsed ? label : undefined}>
+      <div className="relative h-12">
         <motion.div
           initial={false}
           animate={{
             opacity: isActive ? 1 : 0,
-            width: isActive ? "3px" : "0",
+            scale: isActive ? 1 : 0.96,
+            backgroundColor: "rgba(255, 255, 255, 1)",
+            left: collapsed ? 10 : 0,
+            width: collapsed ? COLLAPSED_PILL_WIDTH : EXPANDED_PILL_WIDTH,
           }}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="absolute left-0 top-1/2 h-6 -translate-y-1/2 rounded-r-full bg-primary"
+          transition={{ duration: SIDEBAR_ANIMATION_DURATION, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none absolute bottom-0 top-0 rounded-full shadow-sm"
         />
 
         <motion.div
           initial={false}
           animate={{
-            scale: isActive ? 1.08 : 1,
-            color: isActive ? "var(--color-primary)" : "var(--color-on-surface-variant)",
+            opacity: isActive ? 1 : 0,
+            width: isActive ? "3px" : "0px",
+            left: collapsed ? 10 : 0,
           }}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="shrink-0"
-        >
-          <Icon size={20} className={cn(isActive ? "text-primary" : "text-on-surface-variant")} />
-        </motion.div>
+          transition={{ duration: SIDEBAR_ANIMATION_DURATION, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none absolute left-0 top-1/2 h-6 -translate-y-1/2 rounded-r-full bg-primary"
+        />
 
-        <span
-          className={cn(
-            "overflow-hidden whitespace-nowrap font-headline text-sm tracking-tight transition-[max-width,opacity,transform] duration-500",
-            collapsed ? "max-w-0 -translate-x-2 opacity-0" : "max-w-[120px] translate-x-0 opacity-100",
-          )}
-          style={{ transitionTimingFunction: SIDEBAR_EASING }}
-        >
-          {label}
-        </span>
-      </motion.div>
+        <div className="relative h-full">
+          <div
+            className="absolute top-1/2 -translate-y-1/2"
+            style={{ left: `${ICON_ANCHOR_LEFT}px` }}
+          >
+            <motion.div
+              initial={false}
+              animate={{
+                scale: isActive ? 1.08 : 1,
+                x: isActive ? 2 : 0,
+                color: isActive
+                  ? "var(--color-primary)"
+                  : "var(--color-on-surface-variant)",
+              }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="relative z-10 flex h-5 w-5 items-center justify-center"
+            >
+              <Icon
+                size={20}
+                className={cn(
+                  "transition-colors duration-300",
+                  isActive
+                    ? "text-primary"
+                    : "text-on-surface-variant group-hover:text-primary",
+                )}
+              />
+            </motion.div>
+          </div>
+
+          <div
+            className="absolute right-4 top-1/2 min-w-0 -translate-y-1/2 overflow-hidden"
+            style={{ left: `${LABEL_LEFT}px` }}
+          >
+            <motion.div
+              initial={false}
+              animate={{
+                opacity: collapsed ? 0 : 1,
+                maxWidth: collapsed ? 0 : 140,
+              }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className="overflow-hidden whitespace-nowrap"
+            >
+              <span
+              className={cn(
+                  "font-headline text-sm tracking-tight transition-colors duration-300 group-hover:text-primary",
+                  isActive ? "text-primary" : "text-on-surface-variant",
+                )}
+              >
+                {label}
+              </span>
+            </motion.div>
+          </div>
+        </div>
+      </div>
     </Link>
   );
 };

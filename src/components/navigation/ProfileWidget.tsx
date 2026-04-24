@@ -22,8 +22,8 @@ export const ProfileWidget: React.FC<ProfileWidgetProps> = ({ collapsed }) => (
     />
     <div
       className={cn(
-        "overflow-hidden transition-[max-width,opacity,transform] duration-500",
-        collapsed ? "max-w-0 -translate-x-2 opacity-0" : "max-w-[140px] translate-x-0 opacity-100",
+        "overflow-hidden transition-[max-width,opacity] duration-500",
+        collapsed ? "max-w-0 opacity-0" : "max-w-[140px] opacity-100",
       )}
       style={{ transitionTimingFunction: SIDEBAR_EASING }}
     >

@@ -20,8 +20,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => (
       <div className="flex items-center justify-between gap-3">
         <div
           className={cn(
-            "min-w-0 overflow-hidden transition-[max-width,opacity,transform] duration-500",
-            collapsed ? "max-w-0 -translate-x-2 opacity-0" : "max-w-[120px] translate-x-0 opacity-100",
+            "min-w-0 overflow-hidden transition-[max-width,opacity] duration-500",
+            collapsed ? "max-w-0 opacity-0" : "max-w-[120px] opacity-100",
           )}
           style={{ transitionTimingFunction: SIDEBAR_EASING }}
         >
