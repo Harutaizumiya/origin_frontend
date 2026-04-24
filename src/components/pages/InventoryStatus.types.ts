@@ -7,12 +7,17 @@ export interface InventoryRecord {
   id: string;
   quantity: string;
   manufacturer: string;
+  productId: number;
   productName: string;
+  barcode: string;
   category: string;
   location: string;
   manufactureDate: string;
   expireDate: string;
   receivedDate: string;
+  status: string | null;
+  batchCode: string;
+  remarks?: string | null;
 }
 
 export interface ShelfLifeMetrics {

@@ -1,28 +1,26 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { AppstoreOutlined, BarsOutlined, CheckCircleFilled, ClockCircleFilled, DashboardOutlined, ExclamationCircleFilled } from "@ant-design/icons";
+import { ChevronLeft, ChevronRight, LoaderCircle, Package, Plus, Search, ShieldCheck, TriangleAlert, Warehouse, X } from "lucide-react";
 import {
-  AppstoreOutlined,
-  BarsOutlined,
-  CheckCircleFilled,
-  ClockCircleFilled,
-  DashboardOutlined,
-  ExclamationCircleFilled,
-} from "@ant-design/icons";
-import { ChevronLeft, ChevronRight, Package, Plus, Search, ShieldCheck, TriangleAlert, Warehouse, X } from "lucide-react";
+  ApiClientError,
+  buildInventoryDetail,
+  createBatch,
+  getShelfLifeMetricsFromDates,
+  listBatches,
+  listProductBatches,
+  listProducts,
+  mergeInventoryRecord,
+  parseQuantity,
+  toInventoryRecord,
+} from "../../api";
 import { cn } from "../../lib/utils";
 import { FloatingActionButtons } from "../actions/FloatingActionButtons";
 import { StatCard } from "../dashboard/StatCard";
 import { InventoryBatchDetailModal } from "./InventoryBatchDetailModal";
 import { InventoryStatusCard } from "./InventoryStatusCard";
-import { INITIAL_PRODUCTS } from "./ProductManagement.mock";
 import type { Product } from "./ProductManagement.types";
-import type {
-  InventoryBatchDetail,
-  InventoryHealth,
-  InventoryHealthMeta,
-  InventoryRecord,
-  ShelfLifeMetrics,
-} from "./InventoryStatus.types";
+import type { InventoryBatchDetail, InventoryHealth, InventoryHealthMeta, InventoryRecord, ShelfLifeMetrics } from "./InventoryStatus.types";
 
 type InventoryView = "card" | "list";
 
@@ -30,277 +28,24 @@ interface NewBatchFormState {
   query: string;
   quantity: string;
   manufactureDate: string;
+  remarks: string;
 }
-
-const INVENTORY_ITEMS: InventoryRecord[] = [
-  {
-    id: "INV-001",
-    quantity: "250.0",
-    manufacturer: "澳洲进口商",
-    productName: "澳洲安格斯牛肉 300g",
-    category: "肉类",
-    location: "冷库 A-04",
-    manufactureDate: "2026-01-08",
-    expireDate: "2027-01-08T00:00:00+00:00",
-    receivedDate: "2026-01-08T21:46:04+00:00",
-  },
-  {
-    id: "INV-002",
-    quantity: "180.0",
-    manufacturer: "新西兰乳品供应商",
-    productName: "巴氏杀菌全脂牛奶 1L",
-    category: "乳制品",
-    location: "冷库 B-12",
-    manufactureDate: "2026-02-18",
-    expireDate: "2026-05-18T00:00:00+00:00",
-    receivedDate: "2026-02-19T09:15:00+00:00",
-  },
-  {
-    id: "INV-003",
-    quantity: "96.0",
-    manufacturer: "本地烘焙工坊",
-    productName: "法式牛角包 6个装",
-    category: "烘焙",
-    location: "常温 D-01",
-    manufactureDate: "2026-03-27",
-    expireDate: "2026-04-02T00:00:00+00:00",
-    receivedDate: "2026-03-27T06:30:00+00:00",
-  },
-  {
-    id: "INV-004",
-    quantity: "210.0",
-    manufacturer: "华东饮品工厂",
-    productName: "冷藏橙汁 500ml",
-    category: "饮品",
-    location: "冷库 B-05",
-    manufactureDate: "2026-03-10",
-    expireDate: "2026-04-20T00:00:00+00:00",
-    receivedDate: "2026-03-11T08:12:00+00:00",
-  },
-  {
-    id: "INV-005",
-    quantity: "34.0",
-    manufacturer: "有机蔬菜基地",
-    productName: "有机小菠菜 200g",
-    category: "蔬菜",
-    location: "冷库 C-02",
-    manufactureDate: "2026-03-29",
-    expireDate: "2026-04-01T00:00:00+00:00",
-    receivedDate: "2026-03-29T05:25:00+00:00",
-  },
-  {
-    id: "INV-006",
-    quantity: "78.0",
-    manufacturer: "云南水果合作社",
-    productName: "蓝莓鲜果盒 125g",
-    category: "水果",
-    location: "冷库 C-05",
-    manufactureDate: "2026-03-20",
-    expireDate: "2026-04-05T00:00:00+00:00",
-    receivedDate: "2026-03-21T07:45:00+00:00",
-  },
-  {
-    id: "INV-007",
-    quantity: "121.0",
-    manufacturer: "华北冷冻食品厂",
-    productName: "冷冻虾仁 1kg",
-    category: "冷冻食品",
-    location: "冻库 F-08",
-    manufactureDate: "2025-12-12",
-    expireDate: "2026-12-12T00:00:00+00:00",
-    receivedDate: "2025-12-15T10:20:00+00:00",
-  },
-  {
-    id: "INV-008",
-    quantity: "64.0",
-    manufacturer: "健康零食品牌商",
-    productName: "坚果能量棒 12支装",
-    category: "零食",
-    location: "常温 E-03",
-    manufactureDate: "2025-11-01",
-    expireDate: "2026-05-01T00:00:00+00:00",
-    receivedDate: "2025-11-05T03:10:00+00:00",
-  },
-  {
-    id: "INV-009",
-    quantity: "28.0",
-    manufacturer: "北欧海鲜进口商",
-    productName: "烟熏三文鱼 150g",
-    category: "海鲜",
-    location: "冷库 A-09",
-    manufactureDate: "2026-03-01",
-    expireDate: "2026-03-28T00:00:00+00:00",
-    receivedDate: "2026-03-02T12:00:00+00:00",
-  },
-];
-
-const INVENTORY_DETAIL_MAP: Record<string, InventoryBatchDetail> = {
-  "INV-001": {
-    sku: "FO-MT-300-AU",
-    currentStock: 250,
-    averageLossRate: "1.8",
-    batchCount: 6,
-    primaryBatchId: "#BT-99281",
-    storageRequirements: [
-      { label: "目标温度", value: "-18°C", subValue: "稳定", icon: "temperature", colorClassName: "bg-blue-50 text-blue-600" },
-      { label: "目标湿度", value: "68%", subValue: "正常", icon: "humidity", colorClassName: "bg-cyan-50 text-cyan-600" },
-    ],
-    relatedBatches: [
-      { id: "#BT-99281", quantity: 250, manufactureDate: "2026-01-08", expireDate: "2027-01-08T00:00:00+00:00", progress: 78, remainingDays: 284, health: "healthy" },
-      { id: "#BT-99302", quantity: 190, manufactureDate: "2026-01-15", expireDate: "2027-01-15T00:00:00+00:00", progress: 80, remainingDays: 291, health: "healthy" },
-      { id: "#BT-99320", quantity: 96, manufactureDate: "2026-02-01", expireDate: "2027-02-01T00:00:00+00:00", progress: 84, remainingDays: 308, health: "healthy" },
-    ],
-  },
-  "INV-002": {
-    sku: "FO-DY-001-NZ",
-    currentStock: 180,
-    averageLossRate: "2.4",
-    batchCount: 8,
-    primaryBatchId: "#BT-99304",
-    storageRequirements: [
-      { label: "目标温度", value: "4°C", subValue: "±1°C", icon: "temperature", colorClassName: "bg-blue-50 text-blue-600" },
-      { label: "目标湿度", value: "75%", subValue: "稳定", icon: "humidity", colorClassName: "bg-cyan-50 text-cyan-600" },
-    ],
-    relatedBatches: [
-      { id: "#BT-99304", quantity: 180, manufactureDate: "2026-02-18", expireDate: "2026-05-18T00:00:00+00:00", progress: 42, remainingDays: 49, health: "warning" },
-      { id: "#BT-99318", quantity: 144, manufactureDate: "2026-02-24", expireDate: "2026-05-24T00:00:00+00:00", progress: 49, remainingDays: 55, health: "warning" },
-      { id: "#BT-99328", quantity: 132, manufactureDate: "2026-03-01", expireDate: "2026-05-30T00:00:00+00:00", progress: 55, remainingDays: 61, health: "healthy" },
-    ],
-  },
-  "INV-003": {
-    sku: "FO-BK-006-LC",
-    currentStock: 96,
-    averageLossRate: "4.1",
-    batchCount: 5,
-    primaryBatchId: "#BT-99333",
-    storageRequirements: [
-      { label: "目标温度", value: "22°C", subValue: "常温", icon: "temperature", colorClassName: "bg-amber-50 text-amber-600" },
-      { label: "目标湿度", value: "45%", subValue: "干燥", icon: "humidity", colorClassName: "bg-cyan-50 text-cyan-600" },
-    ],
-    relatedBatches: [
-      { id: "#BT-99333", quantity: 96, manufactureDate: "2026-03-27", expireDate: "2026-04-02T00:00:00+00:00", progress: 17, remainingDays: 3, health: "critical" },
-      { id: "#BT-99334", quantity: 88, manufactureDate: "2026-03-28", expireDate: "2026-04-03T00:00:00+00:00", progress: 30, remainingDays: 4, health: "warning" },
-      { id: "#BT-99336", quantity: 72, manufactureDate: "2026-03-29", expireDate: "2026-04-04T00:00:00+00:00", progress: 42, remainingDays: 5, health: "warning" },
-    ],
-  },
-  "INV-004": {
-    sku: "FO-DR-500-CN",
-    currentStock: 210,
-    averageLossRate: "1.2",
-    batchCount: 7,
-    primaryBatchId: "#BT-99345",
-    storageRequirements: [
-      { label: "目标温度", value: "6°C", subValue: "冷藏", icon: "temperature", colorClassName: "bg-blue-50 text-blue-600" },
-      { label: "目标湿度", value: "70%", subValue: "稳定", icon: "humidity", colorClassName: "bg-cyan-50 text-cyan-600" },
-    ],
-    relatedBatches: [
-      { id: "#BT-99345", quantity: 210, manufactureDate: "2026-03-10", expireDate: "2026-04-20T00:00:00+00:00", progress: 48, remainingDays: 21, health: "warning" },
-      { id: "#BT-99346", quantity: 180, manufactureDate: "2026-03-11", expireDate: "2026-04-21T00:00:00+00:00", progress: 50, remainingDays: 22, health: "warning" },
-      { id: "#BT-99347", quantity: 174, manufactureDate: "2026-03-12", expireDate: "2026-04-22T00:00:00+00:00", progress: 53, remainingDays: 23, health: "healthy" },
-    ],
-  },
-  "INV-005": {
-    sku: "FO-VG-200-OG",
-    currentStock: 34,
-    averageLossRate: "6.5",
-    batchCount: 4,
-    primaryBatchId: "#BT-99351",
-    storageRequirements: [
-      { label: "目标温度", value: "2°C", subValue: "冷藏", icon: "temperature", colorClassName: "bg-blue-50 text-blue-600" },
-      { label: "目标湿度", value: "85%", subValue: "高湿", icon: "humidity", colorClassName: "bg-cyan-50 text-cyan-600" },
-    ],
-    relatedBatches: [
-      { id: "#BT-99351", quantity: 34, manufactureDate: "2026-03-29", expireDate: "2026-04-01T00:00:00+00:00", progress: 4, remainingDays: 1, health: "critical" },
-      { id: "#BT-99352", quantity: 30, manufactureDate: "2026-03-29", expireDate: "2026-04-02T00:00:00+00:00", progress: 22, remainingDays: 2, health: "warning" },
-      { id: "#BT-99353", quantity: 28, manufactureDate: "2026-03-30", expireDate: "2026-04-03T00:00:00+00:00", progress: 33, remainingDays: 3, health: "warning" },
-    ],
-  },
-  "INV-006": {
-    sku: "FO-FR-125-YN",
-    currentStock: 78,
-    averageLossRate: "3.6",
-    batchCount: 5,
-    primaryBatchId: "#BT-99360",
-    storageRequirements: [
-      { label: "目标温度", value: "3°C", subValue: "冷藏", icon: "temperature", colorClassName: "bg-blue-50 text-blue-600" },
-      { label: "目标湿度", value: "78%", subValue: "稳定", icon: "humidity", colorClassName: "bg-cyan-50 text-cyan-600" },
-    ],
-    relatedBatches: [
-      { id: "#BT-99360", quantity: 78, manufactureDate: "2026-03-20", expireDate: "2026-04-05T00:00:00+00:00", progress: 34, remainingDays: 6, health: "warning" },
-      { id: "#BT-99361", quantity: 66, manufactureDate: "2026-03-21", expireDate: "2026-04-06T00:00:00+00:00", progress: 40, remainingDays: 7, health: "warning" },
-      { id: "#BT-99362", quantity: 52, manufactureDate: "2026-03-22", expireDate: "2026-04-07T00:00:00+00:00", progress: 46, remainingDays: 8, health: "warning" },
-    ],
-  },
-  "INV-007": {
-    sku: "FO-FZ-1000-HB",
-    currentStock: 121,
-    averageLossRate: "1.1",
-    batchCount: 6,
-    primaryBatchId: "#BT-99371",
-    storageRequirements: [
-      { label: "目标温度", value: "-20°C", subValue: "冷冻", icon: "temperature", colorClassName: "bg-blue-50 text-blue-600" },
-      { label: "目标湿度", value: "65%", subValue: "稳定", icon: "humidity", colorClassName: "bg-cyan-50 text-cyan-600" },
-    ],
-    relatedBatches: [
-      { id: "#BT-99371", quantity: 121, manufactureDate: "2025-12-12", expireDate: "2026-12-12T00:00:00+00:00", progress: 71, remainingDays: 257, health: "healthy" },
-      { id: "#BT-99372", quantity: 110, manufactureDate: "2025-12-20", expireDate: "2026-12-20T00:00:00+00:00", progress: 73, remainingDays: 265, health: "healthy" },
-      { id: "#BT-99373", quantity: 102, manufactureDate: "2025-12-30", expireDate: "2026-12-30T00:00:00+00:00", progress: 75, remainingDays: 275, health: "healthy" },
-    ],
-  },
-  "INV-008": {
-    sku: "FO-SN-012-HL",
-    currentStock: 64,
-    averageLossRate: "2.1",
-    batchCount: 9,
-    primaryBatchId: "#BT-99382",
-    storageRequirements: [
-      { label: "目标温度", value: "20°C", subValue: "常温", icon: "temperature", colorClassName: "bg-amber-50 text-amber-600" },
-      { label: "目标湿度", value: "50%", subValue: "干燥", icon: "humidity", colorClassName: "bg-cyan-50 text-cyan-600" },
-    ],
-    relatedBatches: [
-      { id: "#BT-99382", quantity: 64, manufactureDate: "2025-11-01", expireDate: "2026-05-01T00:00:00+00:00", progress: 18, remainingDays: 32, health: "critical" },
-      { id: "#BT-99383", quantity: 58, manufactureDate: "2025-11-12", expireDate: "2026-05-12T00:00:00+00:00", progress: 24, remainingDays: 43, health: "warning" },
-      { id: "#BT-99384", quantity: 76, manufactureDate: "2025-11-18", expireDate: "2026-05-18T00:00:00+00:00", progress: 28, remainingDays: 49, health: "warning" },
-    ],
-  },
-  "INV-009": {
-    sku: "FO-SF-150-NO",
-    currentStock: 28,
-    averageLossRate: "7.9",
-    batchCount: 3,
-    primaryBatchId: "#BT-99391",
-    storageRequirements: [
-      { label: "目标温度", value: "1°C", subValue: "冰鲜", icon: "temperature", colorClassName: "bg-blue-50 text-blue-600" },
-      { label: "目标湿度", value: "82%", subValue: "高湿", icon: "humidity", colorClassName: "bg-cyan-50 text-cyan-600" },
-    ],
-    relatedBatches: [
-      { id: "#BT-99391", quantity: 28, manufactureDate: "2026-03-01", expireDate: "2026-03-28T00:00:00+00:00", progress: 0, remainingDays: 0, health: "critical" },
-      { id: "#BT-99392", quantity: 22, manufactureDate: "2026-03-02", expireDate: "2026-03-29T00:00:00+00:00", progress: 0, remainingDays: 0, health: "critical" },
-      { id: "#BT-99393", quantity: 18, manufactureDate: "2026-03-03", expireDate: "2026-03-30T00:00:00+00:00", progress: 0, remainingDays: 0, health: "critical" },
-    ],
-  },
-};
 
 const LIST_PAGE_SIZE = 6;
 const CARD_MIN_WIDTH = 280;
-const CARD_MAX_WIDTH = 360;
 const CARD_GRID_GAP = 16;
 const CARD_ROWS_PER_PAGE = 2;
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_NEW_BATCH_FORM: NewBatchFormState = {
   query: "",
   quantity: "",
-  manufactureDate: "",
+  manufactureDate: new Date().toISOString().slice(0, 10),
+  remarks: "",
 };
 const HEALTH_PRIORITY: Record<InventoryHealth, number> = {
   critical: 0,
   warning: 1,
   healthy: 2,
 };
-
-function parseQuantity(quantity: string) {
-  return Number.parseFloat(quantity) || 0;
-}
 
 function formatQuantity(quantity: string) {
   const numericValue = parseQuantity(quantity);
@@ -319,24 +64,7 @@ function formatDate(date: string) {
 }
 
 function getShelfLifeMetrics(item: InventoryRecord): ShelfLifeMetrics {
-  const now = new Date();
-  const manufactureDate = new Date(item.manufactureDate);
-  const expireDate = new Date(item.expireDate);
-  const totalDuration = expireDate.getTime() - manufactureDate.getTime();
-  const remainingDuration = expireDate.getTime() - now.getTime();
-  const rawPercent = totalDuration > 0 ? (remainingDuration / totalDuration) * 100 : 0;
-  const percent = Math.max(0, Math.min(100, Math.round(rawPercent)));
-  const remainingDays = Math.max(0, Math.ceil(remainingDuration / DAY_IN_MS));
-
-  if (remainingDuration <= 0 || percent < 20) {
-    return { percent, remainingDays, health: "critical" };
-  }
-
-  if (percent <= 50) {
-    return { percent, remainingDays, health: "warning" };
-  }
-
-  return { percent, remainingDays, health: "healthy" };
+  return getShelfLifeMetricsFromDates(item.expireDate, item.manufactureDate);
 }
 
 function getHealthMeta(health: InventoryHealth): InventoryHealthMeta {
@@ -391,43 +119,6 @@ function sortInventoryItems(items: InventoryRecord[]) {
   });
 }
 
-function formatDateTime(date: string) {
-  return new Date(date).toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function getExpireDateFromManufacture(manufactureDate: string, shelfLifeDays: number) {
-  const expireDate = new Date(`${manufactureDate}T12:00:00`);
-  expireDate.setDate(expireDate.getDate() + shelfLifeDays);
-  return expireDate.toISOString();
-}
-
-function getNextInventoryId(items: InventoryRecord[]) {
-  const highestId = items.reduce((highest, item) => {
-    const numericId = Number.parseInt(item.id.replace("INV-", ""), 10);
-    return Number.isNaN(numericId) ? highest : Math.max(highest, numericId);
-  }, 0);
-
-  return `INV-${String(highestId + 1).padStart(3, "0")}`;
-}
-
-function getTemperatureMeta(location: string | null) {
-  if (location?.includes("冻")) {
-    return { value: "-18°C", subValue: "冷冻", colorClassName: "bg-blue-50 text-blue-600" };
-  }
-
-  if (location?.includes("冷")) {
-    return { value: "4°C", subValue: "冷藏", colorClassName: "bg-blue-50 text-blue-600" };
-  }
-
-  return { value: "22°C", subValue: "常温", colorClassName: "bg-amber-50 text-amber-600" };
-}
-
 function getCardPageSize(containerWidth: number) {
   if (containerWidth <= 0) {
     return LIST_PAGE_SIZE;
@@ -435,6 +126,27 @@ function getCardPageSize(containerWidth: number) {
 
   const columnCount = Math.max(1, Math.floor((containerWidth + CARD_GRID_GAP) / (CARD_MIN_WIDTH + CARD_GRID_GAP)));
   return columnCount * CARD_ROWS_PER_PAGE;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof ApiClientError) {
+    switch (error.message) {
+      case "validation_error":
+        return "请求参数不符合后端校验规则。";
+      case "conflict":
+        return "数据冲突，请检查批次或商品信息。";
+      case "not_found":
+        return "目标数据不存在。";
+      default:
+        return `请求失败：${error.message}`;
+    }
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "请求失败，请稍后重试。";
 }
 
 function InventoryOverviewCards({ items }: { items: InventoryRecord[] }) {
@@ -478,7 +190,7 @@ function InventoryOverviewCards({ items }: { items: InventoryRecord[] }) {
       <StatCard
         title="健康批次占比"
         value={`${healthyRate}%`}
-        trend="基于剩余效期"
+        trend="效期安全率"
         trendType="up"
         icon={<ShieldCheck size={24} />}
         iconBg="bg-emerald-500/10"
@@ -491,9 +203,9 @@ function InventoryOverviewCards({ items }: { items: InventoryRecord[] }) {
 function NewBatchModal({
   open,
   form,
+  submitting,
   selectedProduct,
   searchResults,
-  expireDate,
   error,
   onChange,
   onSelectProduct,
@@ -502,9 +214,9 @@ function NewBatchModal({
 }: {
   open: boolean;
   form: NewBatchFormState;
+  submitting: boolean;
   selectedProduct: Product | null;
   searchResults: Product[];
-  expireDate: string | null;
   error: string | null;
   onChange: (field: keyof NewBatchFormState, value: string) => void;
   onSelectProduct: (product: Product) => void;
@@ -520,179 +232,139 @@ function NewBatchModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[3px]"
-            onClick={onClose}
+            onClick={submitting ? undefined : onClose}
           />
-          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8">
+          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.section
               initial={{ opacity: 0, scale: 0.96, y: 24 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 24 }}
               transition={{ type: "spring", stiffness: 280, damping: 26 }}
-              className="ambient-shadow pointer-events-auto relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
+              className="ambient-shadow pointer-events-auto relative flex w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
             >
-              <div className="flex items-start justify-between border-b border-surface-container-high p-8 md:p-10">
+              <div className="flex items-start justify-between border-b border-surface-container-high px-8 py-6">
                 <div>
-                  <h3 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">新建批次</h3>
-                  <p className="mt-2 text-sm text-on-surface-variant">
-                    先扫描条码或搜索货物，再填写数量和生产日期。无码货物可直接按名称或厂商查询。
-                  </p>
+                  <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">新建批次</h3>
+                  <p className="mt-1 text-sm text-on-surface-variant">当前操作会直接调用 Django `/batches` 接口。</p>
                 </div>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:text-primary"
+                  disabled={submitting}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="grid flex-1 gap-6 overflow-y-auto p-8 md:p-10 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] xl:items-start">
-                <section className="rounded-3xl border border-slate-200 bg-slate-50/80 p-6">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                      <Search size={18} />
-                    </div>
-                    <div>
-                      <h4 className="font-headline text-lg font-bold text-on-surface">识别货物</h4>
-                      <p className="mt-1 text-xs text-on-surface-variant">支持扫码枪输入条码，也支持手动搜索货物名称、条码或厂商。</p>
-                    </div>
+              <div className="space-y-6 px-8 py-8">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-on-surface">搜索货物</label>
+                  <div className="relative">
+                    <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <input
+                      value={form.query}
+                      onChange={(event) => onChange("query", event.target.value)}
+                      placeholder="按货物名、条码或厂商搜索"
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low py-3 pl-11 pr-4 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    />
                   </div>
+                </div>
 
-                  <div className="mt-5">
-                    <label className="relative block">
-                      <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                      <input
-                        autoFocus
-                        value={form.query}
-                        onChange={(event) => onChange("query", event.target.value)}
-                        placeholder="扫描条码或输入货物名称 / 条码 / 厂商"
-                        className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                      />
-                    </label>
-                  </div>
-
-                  {selectedProduct ? (
-                    <div className="mt-5 rounded-3xl border border-primary/10 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-on-surface-variant">已选货物</div>
-                          <h5 className="mt-2 font-headline text-2xl font-extrabold text-on-surface">{selectedProduct.product_name}</h5>
-                          <div className="mt-2 text-sm text-on-surface-variant">
-                            条码：{selectedProduct.barcode || "未填写"} · 厂商：{selectedProduct.manufacturer}
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 text-sm md:min-w-[260px]">
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">分类</div>
-                            <div className="mt-1 font-semibold text-on-surface">{selectedProduct.category || "未填写"}</div>
-                          </div>
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">单位</div>
-                            <div className="mt-1 font-semibold text-on-surface">{selectedProduct.unit || "未填写"}</div>
-                          </div>
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">默认库位</div>
-                            <div className="mt-1 font-semibold text-on-surface">{selectedProduct.location || "未填写"}</div>
-                          </div>
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">保质期</div>
-                            <div className="mt-1 font-semibold text-on-surface">{selectedProduct.shelf_life_days} 天</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-5 space-y-3">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-on-surface-variant">查询结果</div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">候选货物</div>
+                  <div className="grid gap-3 md:grid-cols-2">
                     {searchResults.length > 0 ? (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {searchResults.map((product) => (
+                      searchResults.map((product) => {
+                        const selected = selectedProduct?.id === product.id;
+                        return (
                           <button
                             key={product.id}
                             type="button"
                             onClick={() => onSelectProduct(product)}
                             className={cn(
-                              "rounded-2xl border px-4 py-4 text-left transition-all",
-                              selectedProduct?.id === product.id
-                                ? "border-primary/30 bg-primary/5 shadow-[0_10px_24px_rgba(37,99,235,0.08)]"
-                                : "border-slate-200 bg-white hover:border-primary/20 hover:bg-slate-50",
+                              "rounded-2xl border px-4 py-3 text-left transition-all",
+                              selected
+                                ? "border-primary bg-primary/5 shadow-sm"
+                                : "border-slate-200 bg-white hover:border-primary/30 hover:bg-primary/5",
                             )}
                           >
-                            <div className="font-semibold text-on-surface">{product.product_name}</div>
-                            <div className="mt-1 text-xs text-on-surface-variant">
-                              条码：{product.barcode || "未填写"} · 厂商：{product.manufacturer}
+                            <div className="font-bold text-on-surface">{product.product_name}</div>
+                            <div className="mt-1 text-xs text-on-surface-variant">{product.barcode}</div>
+                            <div className="mt-2 text-xs text-on-surface-variant">
+                              {product.manufacturer} · {product.location ?? "未分配库位"}
                             </div>
                           </button>
-                        ))}
-                      </div>
+                        );
+                      })
                     ) : (
-                      <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-sm text-on-surface-variant">
-                        未找到匹配货物，请继续输入关键词或前往货物管理页先维护货物主数据。
+                      <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-on-surface-variant">
+                        未找到匹配货物。
                       </div>
                     )}
                   </div>
-                </section>
+                </div>
 
-                <section className={cn("rounded-3xl border p-6 transition-all xl:sticky xl:top-0", selectedProduct ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50/70 opacity-70")}>
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h4 className="font-headline text-lg font-bold text-on-surface">批次信息</h4>
-                      <p className="mt-1 text-xs text-on-surface-variant">选中货物后填写数量和生产日期，到期日期会自动推导。</p>
-                    </div>
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-right">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">预计到期</div>
-                      <div className="mt-1 text-sm font-bold text-on-surface">{expireDate ? formatDate(expireDate) : "待选择生产日期"}</div>
-                    </div>
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className="text-sm font-semibold text-on-surface">数量 *</span>
+                    <input
+                      value={form.quantity}
+                      onChange={(event) => onChange("quantity", event.target.value)}
+                      placeholder="例如 8.50"
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-semibold text-on-surface">生产日期 *</span>
+                    <input
+                      type="date"
+                      value={form.manufactureDate}
+                      onChange={(event) => onChange("manufactureDate", event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    />
+                  </label>
+                  <label className="space-y-2 md:col-span-2">
+                    <span className="text-sm font-semibold text-on-surface">备注</span>
+                    <textarea
+                      value={form.remarks}
+                      onChange={(event) => onChange("remarks", event.target.value)}
+                      rows={3}
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                      placeholder="可选"
+                    />
+                  </label>
+                </div>
+
+                {selectedProduct ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    已选择：{selectedProduct.product_name} · 保质期 {selectedProduct.shelf_life_days} 天
                   </div>
+                ) : null}
 
-                  <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className="text-sm font-semibold text-on-surface">数量 *</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.1"
-                        disabled={!selectedProduct}
-                        value={form.quantity}
-                        onChange={(event) => onChange("quantity", event.target.value)}
-                        placeholder="输入本次入库数量"
-                        className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-70"
-                      />
-                    </label>
+                {error ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+                ) : null}
 
-                    <label className="space-y-2">
-                      <span className="text-sm font-semibold text-on-surface">生产日期 *</span>
-                      <input
-                        type="date"
-                        disabled={!selectedProduct}
-                        value={form.manufactureDate}
-                        onChange={(event) => onChange("manufactureDate", event.target.value)}
-                        className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-70"
-                      />
-                    </label>
-                  </div>
-
-                  {error ? <div className="mt-4 text-sm font-semibold text-red-500">{error}</div> : null}
-                </section>
-              </div>
-
-              <div className="flex flex-col gap-3 border-t border-surface-container-high bg-white/90 p-8 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-end">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  onClick={onSubmit}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
-                >
-                  <Plus size={16} />
-                  创建批次
-                </button>
+                <div className="flex items-center justify-end gap-3 border-t border-surface-container-high pt-6">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={submitting}
+                    className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSubmit}
+                    disabled={submitting}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <Plus size={16} />}
+                    创建批次
+                  </button>
+                </div>
               </div>
             </motion.section>
           </div>
@@ -786,12 +458,7 @@ function InventoryListView({
                     <div className="relative h-2 rounded-full bg-slate-200">
                       <div className={cn("h-2 rounded-full transition-all", meta.progress)} style={{ width: `${metrics.percent}%` }} />
                     </div>
-                    <span
-                      className={cn(
-                        "inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold",
-                        meta.tagClassName,
-                      )}
-                    >
+                    <span className={cn("inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold", meta.tagClassName)}>
                       {meta.icon}
                       {meta.label}
                     </span>
@@ -873,9 +540,7 @@ function Pagination({
             onClick={() => onPageChange(page)}
             className={cn(
               "h-10 w-10 rounded-xl text-sm font-bold transition-all",
-              page === currentPage
-                ? "bg-primary text-white shadow-sm"
-                : "bg-surface-container-low text-on-surface-variant hover:text-primary",
+              page === currentPage ? "bg-primary text-white shadow-sm" : "bg-surface-container-low text-on-surface-variant hover:text-primary",
             )}
           >
             {page}
@@ -896,67 +561,110 @@ function Pagination({
 }
 
 export const InventoryStatusPage: React.FC = () => {
-  const [inventoryItems, setInventoryItems] = useState<InventoryRecord[]>(INVENTORY_ITEMS);
-  const [inventoryDetailMap, setInventoryDetailMap] = useState<Record<string, InventoryBatchDetail>>(INVENTORY_DETAIL_MAP);
+  const [inventoryItems, setInventoryItems] = useState<InventoryRecord[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [detail, setDetail] = useState<InventoryBatchDetail | null>(null);
   const [view, setView] = useState<InventoryView>("card");
   const [currentPage, setCurrentPage] = useState(1);
   const [cardPageSize, setCardPageSize] = useState(LIST_PAGE_SIZE);
   const [selectedItem, setSelectedItem] = useState<InventoryRecord | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isCreateBatchOpen, setIsCreateBatchOpen] = useState(false);
-  const [newBatchForm, setNewBatchForm] = useState<NewBatchFormState>({
-    ...DEFAULT_NEW_BATCH_FORM,
-    manufactureDate: new Date().toISOString().slice(0, 10),
-  });
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
   const [newBatchError, setNewBatchError] = useState<string | null>(null);
+  const [newBatchForm, setNewBatchForm] = useState<NewBatchFormState>(DEFAULT_NEW_BATCH_FORM);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const cardGridRef = useRef<HTMLDivElement | null>(null);
-  const sortedItems = useMemo(() => sortInventoryItems(inventoryItems), [inventoryItems]);
+  const deferredQuery = useDeferredValue(newBatchForm.query);
 
-  const selectedMetrics = useMemo(
-    () => (selectedItem ? getShelfLifeMetrics(selectedItem) : null),
-    [selectedItem],
+  const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
+  const enrichedItems = useMemo(
+    () => inventoryItems.map((item) => mergeInventoryRecord(item, productMap.get(item.productId))),
+    [inventoryItems, productMap],
   );
-  const selectedDetail = useMemo(
-    () => (selectedItem ? inventoryDetailMap[selectedItem.id] ?? null : null),
-    [inventoryDetailMap, selectedItem],
-  );
+  const sortedItems = useMemo(() => sortInventoryItems(enrichedItems), [enrichedItems]);
+  const selectedMetrics = useMemo(() => (selectedItem ? getShelfLifeMetrics(selectedItem) : null), [selectedItem]);
   const batchSearchResults = useMemo(() => {
-    const query = newBatchForm.query.trim().toLowerCase();
-
+    const query = deferredQuery.trim().toLowerCase();
     if (!query) {
-      return INITIAL_PRODUCTS.slice(0, 6);
+      return products.slice(0, 6);
     }
-
-    const exactBarcode = INITIAL_PRODUCTS.find((product) => product.barcode.toLowerCase() === query);
+    const exactBarcode = products.find((product) => product.barcode.toLowerCase() === query);
     if (exactBarcode) {
       return [exactBarcode];
     }
-
-    return INITIAL_PRODUCTS.filter((product) => {
-      const productName = product.product_name.toLowerCase();
-      const manufacturer = product.manufacturer.toLowerCase();
-      const barcode = product.barcode.toLowerCase();
-
-      return productName.includes(query) || manufacturer.includes(query) || barcode.includes(query);
-    }).slice(0, 6);
-  }, [newBatchForm.query]);
-  const expirePreview = useMemo(
-    () =>
-      selectedProduct && newBatchForm.manufactureDate
-        ? getExpireDateFromManufacture(newBatchForm.manufactureDate, selectedProduct.shelf_life_days)
-        : null,
-    [newBatchForm.manufactureDate, selectedProduct],
-  );
+    return products
+      .filter((product) => {
+        return (
+          product.product_name.toLowerCase().includes(query) ||
+          product.manufacturer.toLowerCase().includes(query) ||
+          product.barcode.toLowerCase().includes(query)
+        );
+      })
+      .slice(0, 6);
+  }, [deferredQuery, products]);
 
   const pageSize = view === "card" ? cardPageSize : LIST_PAGE_SIZE;
   const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const pagedItems = sortedItems.slice(startIndex, startIndex + pageSize);
 
-  const openDetail = (item: InventoryRecord) => {
+  const loadPageData = async () => {
+    const [productsData, batchesData] = await Promise.all([
+      listProducts({ page: 1, size: 100 }),
+      listBatches({ page: 1, size: 100 }),
+    ]);
+
+    setProducts(productsData.items);
+    setInventoryItems(batchesData.items.map(toInventoryRecord));
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      try {
+        if (!cancelled) {
+          setIsLoading(true);
+          setPageError(null);
+        }
+        await loadPageData();
+      } catch (error) {
+        if (!cancelled) {
+          setPageError(getErrorMessage(error));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const openDetail = async (item: InventoryRecord) => {
     setSelectedItem(item);
     setIsDetailOpen(true);
+    setIsDetailLoading(true);
+    setDetail(null);
+
+    try {
+      const product = productMap.get(item.productId) ?? null;
+      const relatedBatches = await listProductBatches(item.productId, { page: 1, size: 100 });
+      setDetail(buildInventoryDetail(product, relatedBatches.items));
+    } catch {
+      setDetail(null);
+    } finally {
+      setIsDetailLoading(false);
+    }
   };
 
   const closeDetail = () => {
@@ -967,13 +675,13 @@ export const InventoryStatusPage: React.FC = () => {
     setIsCreateBatchOpen(true);
     setSelectedProduct(null);
     setNewBatchError(null);
-    setNewBatchForm({
-      ...DEFAULT_NEW_BATCH_FORM,
-      manufactureDate: new Date().toISOString().slice(0, 10),
-    });
+    setNewBatchForm(DEFAULT_NEW_BATCH_FORM);
   };
 
   const closeCreateBatchModal = () => {
+    if (isSubmitting) {
+      return;
+    }
     setIsCreateBatchOpen(false);
     setSelectedProduct(null);
     setNewBatchError(null);
@@ -994,134 +702,50 @@ export const InventoryStatusPage: React.FC = () => {
     }));
   };
 
-  const handleCreateBatch = () => {
+  const handleCreateBatch = async () => {
     if (!selectedProduct) {
       setNewBatchError("请先选择一个货物。");
       return;
     }
-
     if (!newBatchForm.quantity.trim() || Number.parseFloat(newBatchForm.quantity) <= 0) {
       setNewBatchError("请输入有效数量。");
       return;
     }
-
     if (!newBatchForm.manufactureDate) {
       setNewBatchError("请选择生产日期。");
       return;
     }
 
-    const nextId = getNextInventoryId(inventoryItems);
-    const receivedDate = new Date().toISOString();
-    const expireDate = getExpireDateFromManufacture(newBatchForm.manufactureDate, selectedProduct.shelf_life_days);
-    const nextItem: InventoryRecord = {
-      id: nextId,
-      quantity: newBatchForm.quantity,
-      manufacturer: selectedProduct.manufacturer,
-      productName: selectedProduct.product_name,
-      category: selectedProduct.category ?? "未分类",
-      location: selectedProduct.location ?? "待分配库位",
-      manufactureDate: newBatchForm.manufactureDate,
-      expireDate,
-      receivedDate,
-    };
-    const metrics = getShelfLifeMetrics(nextItem);
-    const batchId = `#BT-${Date.now().toString().slice(-6)}`;
-    const temperatureMeta = getTemperatureMeta(selectedProduct.location);
-    const nextDetail: InventoryBatchDetail = {
-      sku: selectedProduct.barcode || `PRD-${selectedProduct.id}`,
-      currentStock: parseQuantity(nextItem.quantity),
-      averageLossRate: "0.0",
-      batchCount: 1,
-      primaryBatchId: batchId,
-      storageRequirements: [
-        {
-          label: "目标温度",
-          value: temperatureMeta.value,
-          subValue: temperatureMeta.subValue,
-          icon: "temperature",
-          colorClassName: temperatureMeta.colorClassName,
-        },
-        {
-          label: "目标湿度",
-          value: "70%",
-          subValue: "默认",
-          icon: "humidity",
-          colorClassName: "bg-cyan-50 text-cyan-600",
-        },
-      ],
-      relatedBatches: [
-        {
-          id: batchId,
-          quantity: parseQuantity(nextItem.quantity),
-          manufactureDate: nextItem.manufactureDate,
-          expireDate: nextItem.expireDate,
-          progress: metrics.percent,
-          remainingDays: metrics.remainingDays,
-          health: metrics.health,
-        },
-      ],
-    };
+    setIsSubmitting(true);
+    setNewBatchError(null);
 
-    setInventoryItems((currentItems) => [nextItem, ...currentItems]);
-    setInventoryDetailMap((currentMap) => ({ ...currentMap, [nextItem.id]: nextDetail }));
-    closeCreateBatchModal();
-  };
-
-  useEffect(() => {
-    if (!isDetailOpen) {
-      return;
+    try {
+      await createBatch({
+        product_id: selectedProduct.id,
+        quantity: newBatchForm.quantity.trim(),
+        manufacture_date: newBatchForm.manufactureDate,
+        remarks: newBatchForm.remarks.trim() || null,
+      });
+      await loadPageData();
+      setIsCreateBatchOpen(false);
+      setSelectedProduct(null);
+      setNewBatchForm(DEFAULT_NEW_BATCH_FORM);
+    } catch (error) {
+      setNewBatchError(getErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsDetailOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isDetailOpen]);
+  };
 
   useEffect(() => {
     if (!isDetailOpen) {
       const timer = window.setTimeout(() => {
         setSelectedItem(null);
+        setDetail(null);
       }, 220);
-
       return () => window.clearTimeout(timer);
     }
   }, [isDetailOpen]);
-
-  useEffect(() => {
-    if (!isCreateBatchOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        closeCreateBatchModal();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isCreateBatchOpen]);
-
-  useEffect(() => {
-    if (!isCreateBatchOpen) {
-      return;
-    }
-
-    const query = newBatchForm.query.trim().toLowerCase();
-    if (!query) {
-      return;
-    }
-
-    const exactBarcode = INITIAL_PRODUCTS.find((product) => product.barcode.toLowerCase() === query);
-    if (exactBarcode) {
-      setSelectedProduct((currentProduct) => (currentProduct?.id === exactBarcode.id ? currentProduct : exactBarcode));
-    }
-  }, [isCreateBatchOpen, newBatchForm.query]);
 
   useEffect(() => {
     if (view !== "card") {
@@ -1146,7 +770,6 @@ export const InventoryStatusPage: React.FC = () => {
 
     const observer = new ResizeObserver(updatePageSize);
     observer.observe(container);
-
     return () => observer.disconnect();
   }, [view]);
 
@@ -1159,9 +782,7 @@ export const InventoryStatusPage: React.FC = () => {
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">库存状态</h2>
-          <p className="mt-1 text-on-surface-variant">
-            以批次与效期视角查看库存状态，快速识别临期商品并追踪各库位批次健康度。
-          </p>
+          <p className="mt-1 text-on-surface-variant">批次列表、新建批次与详情弹窗已切到 Django `batches` 接口。</p>
         </div>
         <button
           type="button"
@@ -1173,54 +794,79 @@ export const InventoryStatusPage: React.FC = () => {
         </button>
       </div>
 
-      <InventoryOverviewCards items={inventoryItems} />
+      {pageError ? (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-600">{pageError}</div>
+      ) : null}
+
+      <InventoryOverviewCards items={enrichedItems} />
 
       <section className="ambient-shadow overflow-hidden rounded-3xl border border-surface-container/10 bg-surface-container-lowest">
         <div className="flex flex-col gap-4 border-b border-surface-container-high p-8 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <h3 className="font-headline text-xl font-bold text-on-surface">批次详情</h3>
             <p className="mt-1 text-sm text-on-surface-variant">
-              当前共 {sortedItems.length} 个批次条目，临期与已过期批次会优先展示在最前面。
+              {isLoading ? "正在从后端加载批次..." : `当前共 ${sortedItems.length} 个批次条目，临期与过期批次优先展示。`}
             </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 md:flex">
-              <DashboardOutlined />
-              支持卡片与列表两种视图，并可打开同一份批次详情
+              {isLoading ? <LoaderCircle size={16} className="animate-spin" /> : <DashboardOutlined />}
+              接口来源：`/api/batches`
             </div>
             <ViewToggle view={view} onChange={setView} />
           </div>
         </div>
 
         <div className="p-8">
-          {view === "card" ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center gap-4 px-8 py-20 text-center">
+              <LoaderCircle size={28} className="animate-spin text-on-surface-variant" />
+              <div>
+                <h4 className="text-lg font-bold text-on-surface">正在同步批次数据</h4>
+                <p className="mt-1 text-sm text-on-surface-variant">请确认 Django 服务已启动，并且 `VITE_API_BASE_URL` 指向正确后端。</p>
+              </div>
+            </div>
+          ) : view === "card" ? (
             <InventoryCardView items={pagedItems} gridRef={cardGridRef} onOpenDetail={openDetail} />
           ) : (
             <InventoryListView items={pagedItems} onOpenDetail={openDetail} />
           )}
         </div>
 
-        <div className="px-8 pb-8">
-          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-        </div>
+        {!isLoading ? (
+          <div className="px-8 pb-8">
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+          </div>
+        ) : null}
       </section>
 
       <InventoryBatchDetailModal
-        open={isDetailOpen}
+        open={isDetailOpen && !isDetailLoading && Boolean(detail)}
         item={selectedItem}
-        detail={selectedDetail}
+        detail={detail}
         metrics={selectedMetrics}
         onClose={closeDetail}
         formatDate={formatDate}
         formatQuantity={formatQuantity}
       />
 
+      {isDetailOpen && isDetailLoading ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-[2px]">
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 text-sm text-slate-600 shadow-lg">
+            <div className="flex items-center gap-3">
+              <LoaderCircle size={18} className="animate-spin" />
+              正在加载批次详情...
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <NewBatchModal
         open={isCreateBatchOpen}
         form={newBatchForm}
+        submitting={isSubmitting}
         selectedProduct={selectedProduct}
         searchResults={batchSearchResults}
-        expireDate={expirePreview}
         error={newBatchError}
         onChange={handleNewBatchChange}
         onSelectProduct={handleSelectProduct}
