@@ -15,6 +15,22 @@ interface InventoryStatusCardProps {
   onOpenDetail: (item: InventoryRecord) => void;
 }
 
+function getOperationsHint(daysUntilExpiry: number) {
+  if (daysUntilExpiry < 0) {
+    return "已过期";
+  }
+  if (daysUntilExpiry <= 3) {
+    return "强提醒";
+  }
+  if (daysUntilExpiry <= 7) {
+    return "提醒";
+  }
+  if (daysUntilExpiry <= 30) {
+    return "可关注";
+  }
+  return "正常跟进";
+}
+
 export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
   item,
   metrics,
@@ -90,7 +106,7 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
 
       <div className="mb-2.5 rounded-2xl border border-slate-100 bg-slate-50/80 p-3 sm:mb-3 sm:p-3.5">
         <div className="mb-2 flex items-center justify-between text-[10px] text-slate-500 sm:text-[11px]">
-          <span>剩余效期</span>
+          <span>生命周期进度</span>
           <span className="font-semibold text-slate-700">
             {metrics.percent}%
           </span>
@@ -135,7 +151,7 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
             剩余天数
           </div>
           <div className="text-[11px] font-semibold text-slate-900 sm:text-[12px]">
-            {metrics.remainingDays} 天
+            {metrics.remainingDays} 天 · {getOperationsHint(metrics.remainingDays)}
           </div>
         </div>
       </div>

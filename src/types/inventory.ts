@@ -4,7 +4,7 @@ export interface StatCardProps {
   title: string;
   value: string;
   trend?: string;
-  trendType?: "up" | "down" | "neutral";
+  trendType?: "up" | "down" | "neutral" | "critical";
   icon: ReactNode;
   iconBg: string;
   iconColor: string;

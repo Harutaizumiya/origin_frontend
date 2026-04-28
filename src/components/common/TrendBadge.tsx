@@ -4,7 +4,7 @@ import { cn } from "../../lib/utils";
 
 interface TrendBadgeProps {
   trend?: string;
-  trendType?: "up" | "down" | "neutral";
+  trendType?: "up" | "down" | "neutral" | "critical";
 }
 
 export const TrendBadge: React.FC<TrendBadgeProps> = ({ trend, trendType }) => {
@@ -18,6 +18,8 @@ export const TrendBadge: React.FC<TrendBadgeProps> = ({ trend, trendType }) => {
           ? "text-green-600 bg-green-50"
           : trendType === "down"
             ? "text-error bg-error/10"
+            : trendType === "critical"
+              ? "text-red-600 bg-red-500/10"
             : "text-amber-600 bg-amber-50",
       )}
     >

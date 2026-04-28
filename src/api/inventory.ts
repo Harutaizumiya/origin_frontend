@@ -1,5 +1,5 @@
 import type { Product } from "../components/pages/ProductManagement.types";
-import type { InventoryBatchDetail, InventoryHealth, InventoryRecord, InventoryRelatedBatch } from "../components/pages/InventoryStatus.types";
+import type { ExpiryStatus, InventoryBatchDetail, InventoryHealth, InventoryRecord, InventoryRelatedBatch } from "../components/pages/InventoryStatus.types";
 import type { BatchDto } from "./batches";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -50,6 +50,35 @@ export function getShelfLifeMetricsFromDates(expireDate: string | null, manufact
   return { percent, remainingDays, health: "healthy" as const };
 }
 
+function toInventoryHealth(expiryStatus: ExpiryStatus | null | undefined): InventoryHealth | null {
+  if (!expiryStatus) {
+    return null;
+  }
+  if (expiryStatus === "normal") {
+    return "healthy";
+  }
+  if (expiryStatus === "warning") {
+    return "warning";
+  }
+  return "critical";
+}
+
+function toProgressPercent(progress: number | null | undefined) {
+  if (progress === undefined || progress === null || Number.isNaN(progress)) {
+    return null;
+  }
+  return Math.max(0, Math.min(100, Math.round(progress * 100)));
+}
+
+export function getShelfLifeMetricsFromBatch(batch: Pick<BatchDto, "expire_date" | "manufacture_date" | "days_until_expiry" | "expiry_progress" | "expiry_status">) {
+  const fallback = getShelfLifeMetricsFromDates(batch.expire_date, batch.manufacture_date);
+  const health = toInventoryHealth(batch.expiry_status) ?? fallback.health;
+  const percent = toProgressPercent(batch.expiry_progress) ?? fallback.percent;
+  const remainingDays = batch.days_until_expiry ?? fallback.remainingDays;
+
+  return { percent, remainingDays, health };
+}
+
 export function getTemperatureMeta(location: string | null) {
   if (location?.includes("冻")) {
     return { value: "-18°C", subValue: "冷冻", colorClassName: "bg-blue-50 text-blue-600" };
@@ -76,6 +105,9 @@ export function toInventoryRecord(batch: BatchDto): InventoryRecord {
     status: batch.status,
     batchCode: batch.batch_code,
     remarks: batch.remarks,
+    daysUntilExpiry: batch.days_until_expiry,
+    expiryProgress: batch.expiry_progress,
+    expiryStatus: batch.expiry_status ?? null,
   };
 }
 
@@ -88,7 +120,7 @@ export function mergeInventoryRecord(record: InventoryRecord, product?: Product 
 }
 
 export function toInventoryRelatedBatch(batch: BatchDto): InventoryRelatedBatch {
-  const metrics = getShelfLifeMetricsFromDates(batch.expire_date, batch.manufacture_date);
+  const metrics = getShelfLifeMetricsFromBatch(batch);
   return {
     id: batch.batch_code,
     quantity: parseQuantity(batch.quantity),

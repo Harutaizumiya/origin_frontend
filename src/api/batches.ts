@@ -1,12 +1,15 @@
 import type { ApiListData } from "./types";
 import { requestJson } from "./client";
 
+export type ExpiryStatus = "expired" | "critical" | "warning" | "normal";
+
 export interface ProductSummaryDto {
   id: number;
   barcode: string;
   product_name: string;
   unit: string | null;
   manufacturer: string;
+  shelf_life_days?: number;
 }
 
 export interface BatchDto {
@@ -19,6 +22,9 @@ export interface BatchDto {
   expire_date: string | null;
   status: string | null;
   remarks: string | null;
+  days_until_expiry?: number | null;
+  expiry_progress?: number | null;
+  expiry_status?: ExpiryStatus;
   product: ProductSummaryDto;
 }
 
@@ -26,6 +32,18 @@ export interface BatchListParams {
   product_id?: number;
   status?: string;
   expired_only?: boolean;
+  page?: number;
+  size?: number;
+}
+
+export interface ExpiryAlertQuery {
+  product_id?: number;
+  status?: string;
+  category?: string;
+  location?: string;
+  expiry_status?: ExpiryStatus;
+  days_lte?: number;
+  include_expired?: boolean;
   page?: number;
   size?: number;
 }
@@ -42,27 +60,21 @@ export interface BatchMutationInput {
 
 function buildQuery(params: BatchListParams = {}) {
   const searchParams = new URLSearchParams();
-  if (params.product_id !== undefined) {
-    searchParams.set("product_id", String(params.product_id));
-  }
-  if (params.status) {
-    searchParams.set("status", params.status);
-  }
-  if (params.expired_only !== undefined) {
-    searchParams.set("expired_only", String(params.expired_only));
-  }
-  if (params.page) {
-    searchParams.set("page", String(params.page));
-  }
-  if (params.size) {
-    searchParams.set("size", String(params.size));
-  }
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.set(key, String(value));
+    }
+  });
   const query = searchParams.toString();
   return query ? `?${query}` : "";
 }
 
 export async function listBatches(params: BatchListParams = {}) {
   return requestJson<ApiListData<BatchDto>>(`/batches${buildQuery(params)}`);
+}
+
+export async function listExpiryAlerts(params: ExpiryAlertQuery = {}) {
+  return requestJson<ApiListData<BatchDto>>(`/batches/expiry-alerts${buildQuery(params)}`);
 }
 
 export async function createBatch(input: BatchMutationInput) {

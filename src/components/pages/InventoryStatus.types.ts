@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+export type ExpiryStatus = "expired" | "critical" | "warning" | "normal";
 export type InventoryHealth = "healthy" | "warning" | "critical";
 export type InventoryStorageIcon = "temperature" | "humidity";
 
@@ -18,6 +19,9 @@ export interface InventoryRecord {
   status: string | null;
   batchCode: string;
   remarks?: string | null;
+  daysUntilExpiry?: number | null;
+  expiryProgress?: number | null;
+  expiryStatus?: ExpiryStatus | null;
 }
 
 export interface ShelfLifeMetrics {

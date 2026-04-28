@@ -5,18 +5,26 @@ const frontendRoot = path.resolve(__dirname, "..");
 const backendRoot = process.env.ORIGIN_DJANGO_PATH || "C:\\Users\\Haruta\\Documents\\code\\python\\origin_django";
 const backendPython = path.join(backendRoot, ".venv", "Scripts", "python.exe");
 const backendManagePy = path.join(backendRoot, "manage.py");
-const viteBin = path.join(frontendRoot, "node_modules", ".bin", process.platform === "win32" ? "vite.cmd" : "vite");
+const viteBin = path.join(frontendRoot, "node_modules", "vite", "bin", "vite.js");
 
 const isDebug = process.argv.includes("--debug");
-const frontendArgs = [...(isDebug ? ["--mode", "debug"] : []), "--port=3000", "--host=0.0.0.0"];
+const frontendArgs = [viteBin, ...(isDebug ? ["--mode", "debug"] : []), "--port=3000", "--host=0.0.0.0"];
 const processes = [];
 
 function spawnProcess(label, command, args, cwd) {
-  const child = spawn(command, args, {
-    cwd,
-    stdio: ["inherit", "pipe", "pipe"],
-    env: process.env,
-  });
+  let child;
+
+  try {
+    child = spawn(command, args, {
+      cwd,
+      stdio: ["inherit", "pipe", "pipe"],
+      env: process.env,
+    });
+  } catch (error) {
+    console.error(`[${label}] failed to start: ${error.message}`);
+    shutdown(1);
+    return null;
+  }
 
   processes.push(child);
 
@@ -69,4 +77,4 @@ console.log(`Starting Django backend from ${backendRoot}`);
 spawnProcess("backend", backendPython, [backendManagePy, "runserver"], backendRoot);
 
 console.log(`Starting Vite frontend from ${frontendRoot}`);
-spawnProcess("frontend", viteBin, frontendArgs, frontendRoot);
+spawnProcess("frontend", process.execPath, frontendArgs, frontendRoot);

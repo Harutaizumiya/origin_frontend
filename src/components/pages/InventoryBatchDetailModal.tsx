@@ -17,19 +17,30 @@ import {
 import { cn } from "../../lib/utils";
 import type {
   InventoryBatchDetailModalProps,
+  ExpiryStatus,
   InventoryHealth,
   InventoryRelatedBatch,
   InventoryStorageRequirement,
 } from "./InventoryStatus.types";
 
-function getStatusMeta(health: InventoryHealth) {
+function getStatusMeta(health: InventoryHealth, expiryStatus?: ExpiryStatus | null) {
+  if (expiryStatus === "expired") {
+    return {
+      badgeClassName: "bg-red-50 text-red-600 border-red-200",
+      progressClassName: "bg-red-600",
+      textClassName: "text-red-600",
+      icon: <AlertTriangle size={14} className="text-red-600" />,
+      label: "已过期",
+    };
+  }
+
   if (health === "critical") {
     return {
       badgeClassName: "bg-red-50 text-red-600 border-red-200",
       progressClassName: "bg-red-500",
       textClassName: "text-red-600",
       icon: <AlertTriangle size={14} className="text-red-500" />,
-      label: "高风险",
+      label: "紧急",
     };
   }
 
@@ -39,7 +50,7 @@ function getStatusMeta(health: InventoryHealth) {
       progressClassName: "bg-orange-500",
       textClassName: "text-orange-600",
       icon: <AlertTriangle size={14} className="text-orange-500" />,
-      label: "临期预警",
+      label: "临期",
     };
   }
 
@@ -48,7 +59,7 @@ function getStatusMeta(health: InventoryHealth) {
     progressClassName: "bg-emerald-500",
     textClassName: "text-emerald-600",
     icon: <CheckCircle2 size={14} className="text-emerald-500" />,
-    label: "效期健康",
+      label: "正常",
   };
 }
 
@@ -110,7 +121,7 @@ export const InventoryBatchDetailModal: React.FC<InventoryBatchDetailModalProps>
     return null;
   }
 
-  const statusMeta = getStatusMeta(metrics.health);
+  const statusMeta = getStatusMeta(metrics.health, item.expiryStatus);
 
   return (
     <AnimatePresence>
@@ -204,7 +215,7 @@ export const InventoryBatchDetailModal: React.FC<InventoryBatchDetailModalProps>
 
                   <div className="mt-6">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <span className="font-bold text-on-surface">剩余效期: {metrics.percent}%</span>
+                      <span className="font-bold text-on-surface">生命周期进度: {metrics.percent}%</span>
                       <span className="text-on-surface-variant">到期日期: {formatDate(item.expireDate)}</span>
                     </div>
                     <div className="h-3 overflow-hidden rounded-full bg-slate-200">

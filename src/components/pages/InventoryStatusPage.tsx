@@ -1,7 +1,7 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { AppstoreOutlined, BarsOutlined, CheckCircleFilled, ClockCircleFilled, DashboardOutlined, ExclamationCircleFilled } from "@ant-design/icons";
-import { ChevronLeft, ChevronRight, LoaderCircle, Package, Plus, Search, ShieldCheck, TriangleAlert, Warehouse, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, LoaderCircle, Package, Plus, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import {
   ApiClientError,
   buildInventoryDetail,
@@ -153,7 +153,6 @@ function InventoryOverviewCards({ items }: { items: InventoryRecord[] }) {
   const itemMetrics = items.map((item) => getShelfLifeMetrics(item));
   const totalQuantity = items.reduce((sum, item) => sum + parseQuantity(item.quantity), 0);
   const riskBatchCount = itemMetrics.filter((metric) => metric.health !== "healthy").length;
-  const locationCount = new Set(items.map((item) => item.location)).size;
   const healthyRate = Math.round(
     (itemMetrics.filter((metric) => metric.health === "healthy").length / Math.max(items.length, 1)) * 100,
   );
@@ -170,22 +169,22 @@ function InventoryOverviewCards({ items }: { items: InventoryRecord[] }) {
         iconColor="text-primary"
       />
       <StatCard
-        title="临期/异常批次"
+        title="临期批次"
         value={String(riskBatchCount)}
         trend="需优先关注"
         trendType="neutral"
-        icon={<TriangleAlert size={24} />}
+        icon={<ClockCircleFilled className="text-orange-500" />}
         iconBg="bg-amber-500/10"
         iconColor="text-amber-600"
       />
       <StatCard
-        title="库位数量"
-        value={String(locationCount)}
-        trend="按位置去重"
-        trendType="up"
-        icon={<Warehouse size={24} />}
-        iconBg="bg-sky-500/10"
-        iconColor="text-sky-600"
+        title="异常批次"
+        value={String(riskBatchCount)}
+        trend="需及时处理"
+        trendType="critical"
+        icon={<TriangleAlert size={24} />}
+        iconBg="bg-red-500/10"
+        iconColor="text-red-600"
       />
       <StatCard
         title="健康批次占比"

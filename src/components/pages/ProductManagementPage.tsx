@@ -39,7 +39,7 @@ function formatDate(date: string) {
 }
 
 function normalizeText(value: string | null) {
-  return value?.trim() || "未填写";
+  return value?.trim() || "-";
 }
 
 function normalizeSearchValue(value: string | null) {
