@@ -1,16 +1,31 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { MainLayout } from "./components/layout/MainLayout";
-import { AnalyticsPage } from "./components/pages/AnalyticsPage";
-import { DashboardPage } from "./components/pages/DashboardPage";
-import { InventoryStatusPage } from "./components/pages/InventoryStatusPage";
-import { ProductManagementPage } from "./components/pages/ProductManagementPage";
-import { SettingsPage } from "./components/pages/SettingsPage";
+
+const DashboardPage = lazy(() => import("./components/pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
+const ProductManagementPage = lazy(() =>
+  import("./components/pages/ProductManagementPage").then((module) => ({ default: module.ProductManagementPage })),
+);
+const InventoryStatusPage = lazy(() =>
+  import("./components/pages/InventoryStatusPage").then((module) => ({ default: module.InventoryStatusPage })),
+);
+const AnalyticsPage = lazy(() => import("./components/pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
+const SettingsPage = lazy(() => import("./components/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-[360px] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-surface-container-high border-t-primary" />
+    </div>
+  );
+}
 
 function LayoutWrapper() {
   return (
     <MainLayout>
-      <Outlet />
+      <Suspense fallback={<PageFallback />}>
+        <Outlet />
+      </Suspense>
     </MainLayout>
   );
 }

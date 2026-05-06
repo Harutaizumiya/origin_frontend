@@ -1,4 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { AppstoreOutlined, BarsOutlined, CheckCircleFilled, ClockCircleFilled, DashboardOutlined, ExclamationCircleFilled } from "@ant-design/icons";
 import { ChevronLeft, ChevronRight, LoaderCircle, Package, Plus, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
@@ -12,6 +13,7 @@ import {
   listProducts,
   mergeInventoryRecord,
   parseQuantity,
+  queryKeys,
   toInventoryRecord,
 } from "../../api";
 import { cn } from "../../lib/utils";
@@ -560,8 +562,7 @@ function Pagination({
 }
 
 export const InventoryStatusPage: React.FC = () => {
-  const [inventoryItems, setInventoryItems] = useState<InventoryRecord[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const queryClient = useQueryClient();
   const [detail, setDetail] = useState<InventoryBatchDetail | null>(null);
   const [view, setView] = useState<InventoryView>("card");
   const [currentPage, setCurrentPage] = useState(1);
@@ -569,15 +570,31 @@ export const InventoryStatusPage: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<InventoryRecord | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isCreateBatchOpen, setIsCreateBatchOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pageError, setPageError] = useState<string | null>(null);
   const [newBatchError, setNewBatchError] = useState<string | null>(null);
   const [newBatchForm, setNewBatchForm] = useState<NewBatchFormState>(DEFAULT_NEW_BATCH_FORM);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const cardGridRef = useRef<HTMLDivElement | null>(null);
   const deferredQuery = useDeferredValue(newBatchForm.query);
+  const productListParams = useMemo(() => ({ page: 1, size: 100 }), []);
+  const batchListParams = useMemo(() => ({ page: 1, size: 100 }), []);
+  const productsQuery = useQuery({
+    queryKey: queryKeys.products.list(productListParams),
+    queryFn: () => listProducts(productListParams),
+  });
+  const batchesQuery = useQuery({
+    queryKey: queryKeys.batches.list(batchListParams),
+    queryFn: () => listBatches(batchListParams),
+  });
+  const products = productsQuery.data?.items ?? [];
+  const inventoryItems = useMemo(() => batchesQuery.data?.items.map(toInventoryRecord) ?? [], [batchesQuery.data]);
+  const isLoading = productsQuery.isLoading || batchesQuery.isLoading;
+  const pageError = productsQuery.error
+    ? getErrorMessage(productsQuery.error)
+    : batchesQuery.error
+      ? getErrorMessage(batchesQuery.error)
+      : null;
 
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const enrichedItems = useMemo(
@@ -611,43 +628,12 @@ export const InventoryStatusPage: React.FC = () => {
   const startIndex = (currentPage - 1) * pageSize;
   const pagedItems = sortedItems.slice(startIndex, startIndex + pageSize);
 
-  const loadPageData = async () => {
-    const [productsData, batchesData] = await Promise.all([
-      listProducts({ page: 1, size: 100 }),
-      listBatches({ page: 1, size: 100 }),
+  const reloadPageData = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.products.lists() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.batches.lists() }),
     ]);
-
-    setProducts(productsData.items);
-    setInventoryItems(batchesData.items.map(toInventoryRecord));
   };
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function run() {
-      try {
-        if (!cancelled) {
-          setIsLoading(true);
-          setPageError(null);
-        }
-        await loadPageData();
-      } catch (error) {
-        if (!cancelled) {
-          setPageError(getErrorMessage(error));
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const openDetail = async (item: InventoryRecord) => {
     setSelectedItem(item);
@@ -657,7 +643,12 @@ export const InventoryStatusPage: React.FC = () => {
 
     try {
       const product = productMap.get(item.productId) ?? null;
-      const relatedBatches = await listProductBatches(item.productId, { page: 1, size: 100 });
+      const relatedBatchParams = { page: 1, size: 100 };
+      const relatedBatches = await queryClient.fetchQuery({
+        queryKey: queryKeys.batches.byProduct(item.productId, relatedBatchParams),
+        queryFn: () => listProductBatches(item.productId, relatedBatchParams),
+        staleTime: 5 * 60 * 1000,
+      });
       setDetail(buildInventoryDetail(product, relatedBatches.items));
     } catch {
       setDetail(null);
@@ -725,7 +716,8 @@ export const InventoryStatusPage: React.FC = () => {
         manufacture_date: newBatchForm.manufactureDate,
         remarks: newBatchForm.remarks.trim() || null,
       });
-      await loadPageData();
+      await reloadPageData();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.batches.product(selectedProduct.id) });
       setIsCreateBatchOpen(false);
       setSelectedProduct(null);
       setNewBatchForm(DEFAULT_NEW_BATCH_FORM);

@@ -1,4 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ChevronLeft,
@@ -12,7 +13,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { ApiClientError, createProduct, deleteProduct, listProductCategories, listProducts, updateProduct } from "../../api";
+import { ApiClientError, createProduct, deleteProduct, listProductCategories, listProducts, queryKeys, updateProduct } from "../../api";
 import { cn } from "../../lib/utils";
 import type { Product, ProductFilters, ProductFormInput } from "./ProductManagement.types";
 
@@ -369,8 +370,7 @@ function DeleteConfirmModal({
 }
 
 export const ProductManagementPage: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categoryOptionsFromApi, setCategoryOptionsFromApi] = useState<string[]>([]);
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<ProductFilters>({
     category: "",
     location: "",
@@ -383,65 +383,36 @@ export const ProductManagementPage: React.FC = () => {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [barcodeError, setBarcodeError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [form, setForm] = useState<ProductFormInput>(EMPTY_FORM);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(filters.query);
-
-  const fetchProducts = async (search: string) => {
-    const data = await listProducts({
-      search,
+  const productListParams = useMemo(
+    () => ({
+      search: deferredQuery.trim(),
       page: 1,
       size: 100,
-    });
-    setProducts(data.items);
-  };
+    }),
+    [deferredQuery],
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function run() {
-      try {
-        if (!cancelled) {
-          setIsLoading(true);
-          setErrorMessage(null);
-        }
-
-        const [productData, categoryData] = await Promise.all([
-          listProducts({
-            search: deferredQuery.trim(),
-            page: 1,
-            size: 100,
-          }),
-          listProductCategories(),
-        ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        setProducts(productData.items);
-        setCategoryOptionsFromApi(categoryData);
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-        setErrorMessage(getErrorMessage(error));
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [deferredQuery]);
+  const productsQuery = useQuery({
+    queryKey: queryKeys.products.list(productListParams),
+    queryFn: () => listProducts(productListParams),
+  });
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.products.categories(),
+    queryFn: () => listProductCategories(),
+  });
+  const products = productsQuery.data?.items ?? [];
+  const categoryOptionsFromApi = categoriesQuery.data ?? [];
+  const isLoading = productsQuery.isLoading || categoriesQuery.isLoading;
+  const errorMessage = productsQuery.error
+    ? getErrorMessage(productsQuery.error)
+    : categoriesQuery.error
+      ? getErrorMessage(categoriesQuery.error)
+      : mutationError;
 
   const categoryOptions = useMemo(
     () => getUniqueOptions([...categoryOptionsFromApi, ...products.map((product) => product.category)]),
@@ -538,13 +509,10 @@ export const ProductManagementPage: React.FC = () => {
   };
 
   const reloadAfterMutation = async () => {
-    await fetchProducts(filters.query.trim());
-    try {
-      const categories = await listProductCategories();
-      setCategoryOptionsFromApi(categories);
-    } catch {
-      // Keep the current options if category refresh fails.
-    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.products.lists() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.products.categories() }),
+    ]);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -573,6 +541,7 @@ export const ProductManagementPage: React.FC = () => {
     setIsSubmitting(true);
     setSubmitError(null);
     setBarcodeError(null);
+    setMutationError(null);
 
     try {
       const payload = {
@@ -610,7 +579,7 @@ export const ProductManagementPage: React.FC = () => {
     }
 
     setIsDeleting(true);
-    setErrorMessage(null);
+    setMutationError(null);
 
     try {
       await deleteProduct(productToDelete.id);
@@ -620,7 +589,7 @@ export const ProductManagementPage: React.FC = () => {
       }
       setProductToDelete(null);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error));
+      setMutationError(getErrorMessage(error));
     } finally {
       setIsDeleting(false);
     }
