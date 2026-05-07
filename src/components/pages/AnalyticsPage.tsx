@@ -1,7 +1,6 @@
 import React from "react";
-import { Download, MoreHorizontal, RefreshCw, Timer, TrendingDown } from "lucide-react";
+import { Download, LayoutDashboard, MoreHorizontal, RefreshCw, Timer, TrendingDown } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { BarChartOutlined, DashboardOutlined } from "@ant-design/icons";
 import { cn } from "../../lib/utils";
 import { useLayoutContext } from "../layout/LayoutContext";
 import { StatCard } from "../dashboard/StatCard";
@@ -241,7 +240,7 @@ export const AnalyticsPage: React.FC = () => {
 
       <div className="mb-8 flex flex-col gap-3 rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 shadow-[0_10px_30px_rgba(15,23,42,0.05)] md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3 text-sm text-slate-500">
-          <DashboardOutlined className="text-primary" />
+          <LayoutDashboard size={16} className="text-primary" />
           <span>默认展示过去 6 个月数据，重点突出临期损耗与高周转品类。</span>
         </div>
         <button

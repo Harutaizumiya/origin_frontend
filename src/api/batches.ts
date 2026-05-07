@@ -28,6 +28,20 @@ export interface BatchDto {
   product: ProductSummaryDto;
 }
 
+export type BatchOperationType = "add" | "deduct" | "loss";
+
+export interface BatchOperationDto {
+  id: number;
+  batch_id: number;
+  operation_type: BatchOperationType;
+  quantity: string;
+  quantity_after: string;
+  remarks: string | null;
+  created_at: string;
+  reversed_operation_id: number | null;
+  is_reverted: boolean;
+}
+
 export interface BatchListParams {
   product_id?: number;
   status?: string;
@@ -48,6 +62,12 @@ export interface ExpiryAlertQuery {
   size?: number;
 }
 
+export interface BatchOperationListParams {
+  operation_type?: BatchOperationType;
+  page?: number;
+  size?: number;
+}
+
 export interface BatchMutationInput {
   product_id: number;
   batch_code?: string;
@@ -56,6 +76,21 @@ export interface BatchMutationInput {
   expire_date?: string | null;
   status?: string | null;
   remarks?: string | null;
+}
+
+export interface BatchOperationMutationInput {
+  operation_type: BatchOperationType;
+  quantity: string;
+  remarks?: string | null;
+}
+
+export interface BatchOperationRevertInput {
+  remarks?: string | null;
+}
+
+export interface BatchOperationMutationResult {
+  operation: BatchOperationDto;
+  batch: BatchDto;
 }
 
 function buildQuery(params: BatchListParams = {}) {
@@ -94,4 +129,28 @@ export async function createBatch(input: BatchMutationInput) {
 
 export async function listProductBatches(productId: number, params: Omit<BatchListParams, "product_id"> = {}) {
   return requestJson<ApiListData<BatchDto>>(`/products/${productId}/batches${buildQuery(params)}`);
+}
+
+export async function listBatchOperations(batchId: number, params: BatchOperationListParams = {}) {
+  return requestJson<ApiListData<BatchOperationDto>>(`/batches/${batchId}/operations${buildQuery(params)}`);
+}
+
+export async function createBatchOperation(batchId: number, input: BatchOperationMutationInput) {
+  return requestJson<BatchOperationMutationResult>(`/batches/${batchId}/operations`, {
+    method: "POST",
+    body: {
+      operation_type: input.operation_type,
+      quantity: input.quantity.trim(),
+      remarks: input.remarks?.trim() || null,
+    },
+  });
+}
+
+export async function revertBatchOperation(batchId: number, operationId: number, input: BatchOperationRevertInput = {}) {
+  return requestJson<BatchOperationMutationResult>(`/batches/${batchId}/operations/${operationId}/revert`, {
+    method: "POST",
+    body: {
+      remarks: input.remarks?.trim() || null,
+    },
+  });
 }

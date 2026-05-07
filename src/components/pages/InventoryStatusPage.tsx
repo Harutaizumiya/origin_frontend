@@ -1,8 +1,7 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { AppstoreOutlined, BarsOutlined, CheckCircleFilled, ClockCircleFilled, DashboardOutlined, ExclamationCircleFilled } from "@ant-design/icons";
-import { ChevronLeft, ChevronRight, LoaderCircle, Package, Plus, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleAlert, CircleCheckBig, Clock3, LayoutDashboard, LayoutGrid, List, LoaderCircle, Package, Plus, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import {
   ApiClientError,
   buildInventoryDetail,
@@ -70,7 +69,7 @@ function getHealthMeta(health: InventoryHealth): InventoryHealthMeta {
       hint: "建议优先处理该批次",
       tagClassName: "bg-red-50 text-red-500 border-red-200",
       lineClassName: "bg-red-500",
-      icon: <ExclamationCircleFilled className="text-red-500" />,
+      icon: <CircleAlert size={14} className="text-red-500" />,
       progress: "bg-red-500",
     };
   }
@@ -81,7 +80,7 @@ function getHealthMeta(health: InventoryHealth): InventoryHealthMeta {
       hint: "请关注剩余效期",
       tagClassName: "bg-orange-50 text-orange-500 border-orange-200",
       lineClassName: "bg-orange-400",
-      icon: <ClockCircleFilled className="text-orange-500" />,
+      icon: <Clock3 size={14} className="text-orange-500" />,
       progress: "bg-orange-400",
     };
   }
@@ -91,7 +90,7 @@ function getHealthMeta(health: InventoryHealth): InventoryHealthMeta {
     hint: "批次效期处于安全区间",
     tagClassName: "bg-blue-50 text-blue-500 border-blue-200",
     lineClassName: "bg-sky-500",
-    icon: <CheckCircleFilled className="text-sky-500" />,
+    icon: <CircleCheckBig size={14} className="text-sky-500" />,
     progress: "bg-sky-500",
   };
 }
@@ -164,7 +163,7 @@ function InventoryOverviewCards({ items }: { items: InventoryRecord[] }) {
         value={String(riskBatchCount)}
         trend="需优先关注"
         trendType="neutral"
-        icon={<ClockCircleFilled className="text-orange-500" />}
+        icon={<Clock3 size={24} className="text-orange-500" />}
         iconBg="bg-amber-500/10"
         iconColor="text-amber-600"
       />
@@ -481,7 +480,7 @@ function ViewToggle({
           view === "card" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-primary",
         )}
       >
-        <AppstoreOutlined />
+        <LayoutGrid size={16} />
         卡片视图
       </button>
       <button
@@ -492,7 +491,7 @@ function ViewToggle({
           view === "list" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-primary",
         )}
       >
-        <BarsOutlined />
+        <List size={16} />
         列表视图
       </button>
     </div>
@@ -790,7 +789,7 @@ export const InventoryStatusPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 md:flex">
-              {isLoading ? <LoaderCircle size={16} className="animate-spin" /> : <DashboardOutlined />}
+              {isLoading ? <LoaderCircle size={16} className="animate-spin" /> : <LayoutDashboard size={16} />}
               接口来源：`/api/batches`
             </div>
             <ViewToggle view={view} onChange={setView} />

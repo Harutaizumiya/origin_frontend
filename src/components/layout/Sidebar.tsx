@@ -1,5 +1,5 @@
 import React from "react";
-import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { SidebarMenu } from "../navigation/SidebarMenu";
 import { ProfileWidget } from "../navigation/ProfileWidget";
@@ -14,7 +14,7 @@ const SIDEBAR_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => (
   <aside
     style={{ width: collapsed ? 80 : 256, transitionTimingFunction: SIDEBAR_EASING }}
-    className="fixed left-0 top-0 z-20 flex h-screen flex-col rounded-r-3xl bg-slate-100 py-6 shadow-xl transition-[width] duration-500 will-change-[width]"
+    className="fixed left-0 top-0 z-20 flex h-screen flex-col rounded-r-3xl bg-surface-container-low py-6 shadow-xl transition-[width] duration-500 will-change-[width]"
   >
     <div className="mb-8 px-4 transition-[margin] duration-500" style={{ transitionTimingFunction: SIDEBAR_EASING }}>
       <div className="flex items-center justify-between gap-3">
@@ -31,11 +31,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => (
         <button
           type="button"
           onClick={onToggle}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition-colors hover:text-primary"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-surface-container bg-surface-container-lowest text-on-surface-variant transition-colors hover:text-primary"
           aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
           title={collapsed ? "展开侧边栏" : "收起侧边栏"}
         >
-          {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
         </button>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import type { BatchListParams } from "./batches";
+import type { BatchListParams, BatchOperationListParams } from "./batches";
 import type { ProductListParams } from "./products";
 
 export const queryKeys = {
@@ -15,5 +15,10 @@ export const queryKeys = {
     product: (productId: number) => [...queryKeys.batches.all, "product", productId] as const,
     byProduct: (productId: number, params: Omit<BatchListParams, "product_id"> = {}) =>
       [...queryKeys.batches.product(productId), params] as const,
+  },
+  operations: {
+    all: ["batch-operations"] as const,
+    batch: (batchId: number) => [...queryKeys.operations.all, "batch", batchId] as const,
+    list: (batchId: number, params: BatchOperationListParams = {}) => [...queryKeys.operations.batch(batchId), params] as const,
   },
 };

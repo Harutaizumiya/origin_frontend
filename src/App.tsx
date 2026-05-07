@@ -9,6 +9,7 @@ const ProductManagementPage = lazy(() =>
 const InventoryStatusPage = lazy(() =>
   import("./components/pages/InventoryStatusPage").then((module) => ({ default: module.InventoryStatusPage })),
 );
+const LossReportPage = lazy(() => import("./components/pages/LossReportPage").then((module) => ({ default: module.LossReportPage })));
 const AnalyticsPage = lazy(() => import("./components/pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
 const SettingsPage = lazy(() => import("./components/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/products" element={<ProductManagementPage />} />
           <Route path="/inventory-status" element={<InventoryStatusPage />} />
+          <Route path="/loss-report" element={<LossReportPage />} />
           <Route path="/analysis" element={<AnalyticsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

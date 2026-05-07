@@ -1,5 +1,5 @@
 import React from "react";
-import { BarChart3, Boxes, LayoutDashboard, Package, Settings } from "lucide-react";
+import { BarChart3, Boxes, LayoutDashboard, Package, Settings, TriangleAlert } from "lucide-react";
 import { SidebarItem } from "./SidebarItem";
 
 interface SidebarMenuProps {
@@ -12,6 +12,7 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({ collapsed }) => (
       <SidebarItem collapsed={collapsed} icon={LayoutDashboard} label="总览" to="/" />
       <SidebarItem collapsed={collapsed} icon={Boxes} label="货物管理" to="/products" />
       <SidebarItem collapsed={collapsed} icon={Package} label="库存状态" to="/inventory-status" />
+      <SidebarItem collapsed={collapsed} icon={TriangleAlert} label="报损" to="/loss-report" />
       <SidebarItem collapsed={collapsed} icon={BarChart3} label="分析" to="/analysis" />
     </div>
     <div className="mt-auto pt-2">
