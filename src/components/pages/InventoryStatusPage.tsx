@@ -39,9 +39,6 @@ const CARD_ROWS_PER_PAGE = 2;
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 const QUERY_GC_TIME_MS = 30 * 60 * 1000;
 const PRODUCT_OPTION_LIST_HEIGHT = 180;
-const PRODUCT_OPTION_CARD_HEIGHT = 84;
-const PRODUCT_OPTION_GAP = 12;
-const PRODUCT_OPTION_OVERSCAN_ROWS = 1;
 const DEFAULT_NEW_BATCH_FORM: NewBatchFormState = {
   query: "",
   quantity: "",
@@ -218,55 +215,6 @@ function NewBatchModal({
   onClose: () => void;
   onSubmit: () => void;
 }) {
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [columnCount, setColumnCount] = useState(2);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const container = listRef.current;
-    if (!container) {
-      return;
-    }
-
-    const updateColumnCount = () => {
-      setColumnCount(container.clientWidth < 640 ? 1 : 2);
-    };
-
-    updateColumnCount();
-
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver(updateColumnCount);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    setScrollTop(0);
-    if (listRef.current) {
-      listRef.current.scrollTop = 0;
-    }
-  }, [open, searchResults]);
-
-  const totalRows = Math.ceil(searchResults.length / columnCount);
-  const rowHeight = PRODUCT_OPTION_CARD_HEIGHT + PRODUCT_OPTION_GAP;
-  const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - PRODUCT_OPTION_OVERSCAN_ROWS);
-  const visibleRowCount = Math.ceil(PRODUCT_OPTION_LIST_HEIGHT / rowHeight) + PRODUCT_OPTION_OVERSCAN_ROWS * 2;
-  const endRow = Math.min(totalRows, startRow + visibleRowCount);
-  const visibleProducts = searchResults.slice(startRow * columnCount, endRow * columnCount);
-  const paddingTop = startRow * rowHeight;
-  const paddingBottom = Math.max(0, (totalRows - endRow) * rowHeight);
-
   return (
     <AnimatePresence>
       {open ? (
@@ -328,19 +276,14 @@ function NewBatchModal({
 
                 <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                    <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">候选货物</div>
-                    <div
-                      ref={listRef}
-                      className="overflow-y-auto pr-1"
-                      style={{ height: `${PRODUCT_OPTION_LIST_HEIGHT}px` }}
-                      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
-                    >
+                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">候选货物</div>
+                  <div
+                    className="overflow-y-auto pr-1"
+                    style={{ height: `${PRODUCT_OPTION_LIST_HEIGHT}px` }}
+                  >
                       {searchResults.length > 0 ? (
-                        <div
-                          className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-                          style={{ paddingTop: `${paddingTop}px`, paddingBottom: `${paddingBottom}px` }}
-                        >
-                          {visibleProducts.map((product) => {
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          {searchResults.map((product) => {
                             const selected = selectedProduct?.id === product.id;
                             return (
                               <button
@@ -348,7 +291,7 @@ function NewBatchModal({
                                 type="button"
                                 onClick={() => onSelectProduct(product)}
                                 className={cn(
-                                  "h-[84px] rounded-2xl border px-4 py-3 text-left transition-all",
+                                  "min-h-[84px] rounded-2xl border px-4 py-3 text-left transition-all",
                                   selected
                                     ? "border-primary bg-primary/5 shadow-sm"
                                     : "border-slate-200 bg-white hover:border-primary/30 hover:bg-primary/5",
