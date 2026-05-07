@@ -43,12 +43,6 @@ const DEFAULT_NEW_BATCH_FORM: NewBatchFormState = {
   manufactureDate: new Date().toISOString().slice(0, 10),
   remarks: "",
 };
-const HEALTH_PRIORITY: Record<InventoryHealth, number> = {
-  critical: 0,
-  warning: 1,
-  healthy: 2,
-};
-
 function formatQuantity(quantity: string) {
   const numericValue = parseQuantity(quantity);
   return numericValue.toLocaleString("zh-CN", {
@@ -106,15 +100,10 @@ function sortInventoryItems(items: InventoryRecord[]) {
   return [...items].sort((left, right) => {
     const leftMetrics = getShelfLifeMetrics(left);
     const rightMetrics = getShelfLifeMetrics(right);
-    const healthDiff = HEALTH_PRIORITY[leftMetrics.health] - HEALTH_PRIORITY[rightMetrics.health];
+    const remainingDaysDiff = leftMetrics.remainingDays - rightMetrics.remainingDays;
 
-    if (healthDiff !== 0) {
-      return healthDiff;
-    }
-
-    const expireDiff = new Date(left.expireDate).getTime() - new Date(right.expireDate).getTime();
-    if (expireDiff !== 0) {
-      return expireDiff;
+    if (remainingDaysDiff !== 0) {
+      return remainingDaysDiff;
     }
 
     return left.productName.localeCompare(right.productName, "zh-CN");

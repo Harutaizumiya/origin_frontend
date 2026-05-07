@@ -7,13 +7,11 @@ import {
   ChevronRight,
   Clock,
   LoaderCircle,
-  RotateCcw,
-  Search,
   X,
 } from "lucide-react";
 import {
-  getShelfLifeMetricsFromBatch,
-  listExpiryAlerts,
+  getShelfLifeMetricsFromDates,
+  listBatches,
   parseQuantity,
   type BatchDto,
   type ExpiryStatus,
@@ -21,18 +19,10 @@ import {
 import { cn } from "../../lib/utils";
 
 const PAGE_SIZE = 10;
-
-interface ExpiryAlertFilters {
-  status: string;
-  expiryStatus: string;
-  daysLte: number;
-}
-
-const DEFAULT_FILTERS: ExpiryAlertFilters = {
-  status: "",
-  expiryStatus: "",
-  daysLte: 30,
-};
+const HEALTH_PRIORITY = {
+  critical: 0,
+  warning: 1,
+} as const;
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("zh-CN", {
@@ -50,86 +40,93 @@ function formatQuantity(quantity: string) {
   });
 }
 
-function getStatusBadge(expiryStatus: ExpiryStatus | null | undefined) {
-  if (expiryStatus === "expired") {
+function isExpired(batch: BatchDto) {
+  return batch.expire_date ? new Date(batch.expire_date).getTime() < Date.now() : false;
+}
+
+function getCardMetricsFromBatch(batch: BatchDto) {
+  return getShelfLifeMetricsFromDates(
+    batch.expire_date ?? batch.received_at,
+    batch.manufacture_date ?? batch.received_at,
+  );
+}
+
+function getAlertStatus(batch: BatchDto): Exclude<ExpiryStatus, "normal"> {
+  const metrics = getCardMetricsFromBatch(batch);
+
+  if (isExpired(batch)) {
+    return "expired";
+  }
+  if (metrics.health === "critical") {
+    return "critical";
+  }
+  return "warning";
+}
+
+function getStatusBadge(alertStatus: Exclude<ExpiryStatus, "normal">) {
+  if (alertStatus === "expired") {
     return {
       className: "bg-red-50 text-red-600 border-red-200",
       icon: <AlertTriangle size={12} className="text-red-500" />,
       label: "已过期",
     };
   }
-  if (expiryStatus === "critical") {
+  if (alertStatus === "critical") {
     return {
       className: "bg-red-50 text-red-600 border-red-200",
       icon: <AlertTriangle size={12} className="text-red-500" />,
       label: "紧急",
     };
   }
-  if (expiryStatus === "warning") {
+  if (alertStatus === "warning") {
     return {
       className: "bg-orange-50 text-orange-600 border-orange-200",
       icon: <Clock size={12} className="text-orange-500" />,
       label: "临期",
     };
   }
-  return {
-    className: "bg-emerald-50 text-emerald-600 border-emerald-200",
-    icon: <CheckCircle2 size={12} className="text-emerald-500" />,
-    label: "正常",
-  };
 }
 
-function getStatusOptions() {
-  return [
-    { value: "", label: "全部状态" },
-    { value: "unopened", label: "未开封" },
-    { value: "opened", label: "已开封" },
-    { value: "used_up", label: "已用完" },
-  ];
-}
-
-function getExpiryStatusOptions() {
-  return [
-    { value: "", label: "全部风险" },
-    { value: "expired", label: "已过期" },
-    { value: "critical", label: "紧急" },
-    { value: "warning", label: "临期" },
-    { value: "normal", label: "正常" },
-  ];
-}
-
-export const ExpiryAlertModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const [batches, setBatches] = useState<BatchDto[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<ExpiryAlertFilters>(DEFAULT_FILTERS);
-  const [pendingFilters, setPendingFilters] = useState<ExpiryAlertFilters>(DEFAULT_FILTERS);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pagedBatches = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return batches.slice(start, start + PAGE_SIZE);
+  }, [batches, page]);
 
-  const fetchAlerts = async (currentFilters: ExpiryAlertFilters, currentPage: number) => {
+  const fetchAlerts = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
       const params: Record<string, unknown> = {
-        page: currentPage,
-        size: PAGE_SIZE,
+        page: 1,
+        size: 100,
       };
 
-      if (currentFilters.status) {
-        params.status = currentFilters.status;
-      }
-      if (currentFilters.expiryStatus) {
-        params.expiry_status = currentFilters.expiryStatus;
-      }
-      params.days_lte = currentFilters.daysLte;
+      const data = await listBatches(params as Parameters<typeof listBatches>[0]);
+      const alertItems = data.items.filter((batch) => {
+        return getCardMetricsFromBatch(batch).health !== "healthy";
+      }).sort((left, right) => {
+        const leftMetrics = getCardMetricsFromBatch(left);
+        const rightMetrics = getCardMetricsFromBatch(right);
+        const healthDiff = HEALTH_PRIORITY[leftMetrics.health as keyof typeof HEALTH_PRIORITY] - HEALTH_PRIORITY[rightMetrics.health as keyof typeof HEALTH_PRIORITY];
 
-      const data = await listExpiryAlerts(params as Parameters<typeof listExpiryAlerts>[0]);
-      setBatches(data.items);
-      setTotal(data.pagination?.total ?? 0);
+        if (healthDiff !== 0) {
+          return healthDiff;
+        }
+
+        return new Date(left.expire_date ?? left.received_at).getTime() - new Date(right.expire_date ?? right.received_at).getTime();
+      });
+
+      setBatches(alertItems);
+      setTotal(alertItems.length);
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载失败，请稍后重试。");
     } finally {
@@ -140,36 +137,20 @@ export const ExpiryAlertModal: React.FC<{ open: boolean; onClose: () => void }> 
   useEffect(() => {
     if (open) {
       setPage(1);
-      setFilters(DEFAULT_FILTERS);
-      setPendingFilters(DEFAULT_FILTERS);
     }
   }, [open]);
 
   useEffect(() => {
     if (open) {
-      fetchAlerts(filters, page);
+      fetchAlerts();
     }
-  }, [open, filters, page]);
-
-  const handleApplyFilters = () => {
-    setPage(1);
-    setFilters({ ...pendingFilters });
-  };
-
-  const handleResetFilters = () => {
-    setPendingFilters(DEFAULT_FILTERS);
-    setPage(1);
-    setFilters(DEFAULT_FILTERS);
-  };
-
-  const handleFilterChange = (field: keyof ExpiryAlertFilters, value: string | number) => {
-    setPendingFilters((prev) => ({ ...prev, [field]: value }));
-  };
+  }, [open]);
 
   const summary = useMemo(() => {
-    const expired = batches.filter((b) => b.expiry_status === "expired").length;
-    const critical = batches.filter((b) => b.expiry_status === "critical").length;
-    const warning = batches.filter((b) => b.expiry_status === "warning").length;
+    const statuses = batches.map(getAlertStatus);
+    const expired = statuses.filter((status) => status === "expired").length;
+    const critical = statuses.filter((status) => status === "critical").length;
+    const warning = statuses.filter((status) => status === "warning").length;
     return { expired, critical, warning, total: batches.length };
   }, [batches]);
 
@@ -211,62 +192,7 @@ export const ExpiryAlertModal: React.FC<{ open: boolean; onClose: () => void }> 
               </div>
 
               <div className="border-b border-surface-container-high px-8 py-5">
-                <div className="flex flex-wrap items-end gap-4">
-                  <label className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">批次状态</span>
-                    <select
-                      value={pendingFilters.status}
-                      onChange={(e) => handleFilterChange("status", e.target.value)}
-                      className="rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-2.5 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    >
-                      {getStatusOptions().map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">风险等级</span>
-                    <select
-                      value={pendingFilters.expiryStatus}
-                      onChange={(e) => handleFilterChange("expiryStatus", e.target.value)}
-                      className="rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-2.5 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    >
-                      {getExpiryStatusOptions().map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">剩余天数 ≤</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={pendingFilters.daysLte}
-                      onChange={(e) => handleFilterChange("daysLte", Number(e.target.value) || 0)}
-                      className="w-28 rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-2.5 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    />
-                  </label>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleApplyFilters}
-                      className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:shadow-md"
-                    >
-                      <Search size={14} />
-                      查询
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleResetFilters}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
-                    >
-                      <RotateCcw size={14} />
-                    </button>
-                  </div>
-                </div>
+                <p className="text-sm text-on-surface-variant">默认展示当前临期、紧急和已过期批次。</p>
 
                 {!isLoading && summary.total > 0 && (
                   <div className="mt-4 flex flex-wrap gap-3">
@@ -309,7 +235,7 @@ export const ExpiryAlertModal: React.FC<{ open: boolean; onClose: () => void }> 
                     </div>
                     <button
                       type="button"
-                      onClick={() => fetchAlerts(filters, page)}
+                      onClick={() => fetchAlerts()}
                       className="rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
                     >
                       重试
@@ -340,9 +266,10 @@ export const ExpiryAlertModal: React.FC<{ open: boolean; onClose: () => void }> 
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-surface-container-low">
-                        {batches.map((batch) => {
-                          const metrics = getShelfLifeMetricsFromBatch(batch);
-                          const statusBadge = getStatusBadge(batch.expiry_status);
+                        {pagedBatches.map((batch) => {
+                          const metrics = getCardMetricsFromBatch(batch);
+                          const alertStatus = getAlertStatus(batch);
+                          const statusBadge = getStatusBadge(alertStatus);
 
                           return (
                             <tr key={batch.id} className="transition-colors hover:bg-surface-container-low/30">
@@ -375,13 +302,11 @@ export const ExpiryAlertModal: React.FC<{ open: boolean; onClose: () => void }> 
                                     <div
                                       className={cn(
                                         "h-full rounded-full transition-all",
-                                        batch.expiry_status === "expired"
+                                        alertStatus === "expired"
                                           ? "bg-red-600"
-                                          : batch.expiry_status === "critical"
+                                          : alertStatus === "critical"
                                             ? "bg-red-500"
-                                            : batch.expiry_status === "warning"
-                                              ? "bg-orange-400"
-                                              : "bg-sky-500",
+                                            : "bg-orange-400",
                                       )}
                                       style={{ width: `${metrics.percent}%` }}
                                     />
@@ -393,13 +318,11 @@ export const ExpiryAlertModal: React.FC<{ open: boolean; onClose: () => void }> 
                                 <span
                                   className={cn(
                                     "text-sm font-bold",
-                                    batch.expiry_status === "expired"
+                                    alertStatus === "expired"
                                       ? "text-red-600"
-                                      : batch.expiry_status === "critical"
+                                      : alertStatus === "critical"
                                         ? "text-red-500"
-                                        : batch.expiry_status === "warning"
-                                          ? "text-orange-500"
-                                          : "text-on-surface",
+                                        : "text-orange-500",
                                   )}
                                 >
                                   {batch.days_until_expiry !== null && batch.days_until_expiry !== undefined

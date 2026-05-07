@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
 import { Bell, Plus } from "lucide-react";
-import { ExpiryAlertModal } from "../pages/ExpiryAlertModal";
+import { ShelfLifeAlertModal } from "../pages/ShelfLifeAlertModal";
 
 export const FloatingActionButtons: React.FC = () => {
   const [isExpiryAlertOpen, setIsExpiryAlertOpen] = useState(false);
@@ -30,7 +30,7 @@ export const FloatingActionButtons: React.FC = () => {
           />
         </motion.button>
       </div>
-      <ExpiryAlertModal open={isExpiryAlertOpen} onClose={() => setIsExpiryAlertOpen(false)} />
+      <ShelfLifeAlertModal open={isExpiryAlertOpen} onClose={() => setIsExpiryAlertOpen(false)} />
     </>
   );
 };
