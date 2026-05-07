@@ -30,7 +30,6 @@ interface LossHistoryEntry {
   operation: BatchOperationDto;
   batch: BatchDto;
   product: Product;
-  batchHasRevert: boolean;
   canRevert: boolean;
 }
 
@@ -424,7 +423,7 @@ function LossHistoryModal({
                 ) : entries.length > 0 ? (
                   <div className="space-y-4">
                     {entries.map((entry) => {
-                      const { operation, batch, product, batchHasRevert, canRevert } = entry;
+                      const { operation, batch, product, canRevert } = entry;
 
                       return (
                       <div
@@ -485,11 +484,7 @@ function LossHistoryModal({
                             )}
                           >
                             <RotateCcw size={16} />
-                            {batchHasRevert
-                              ? "该批次已撤销过一次"
-                              : operation.is_reverted
-                                ? "该记录已撤销"
-                                : "撤销报损"}
+                            {operation.is_reverted ? "该记录已撤销" : "撤销报损"}
                           </button>
                         </div>
                       </div>
@@ -639,16 +634,13 @@ export const LossReportPage: React.FC = () => {
             return [];
           }
 
-          const batchHasRevert = items.some((operation) => operation.reversed_operation_id !== null);
-
           return items
             .filter((operation) => operation.operation_type === "loss")
             .map((operation) => ({
               operation,
               batch,
               product,
-              batchHasRevert,
-              canRevert: !batchHasRevert && !operation.is_reverted && operation.reversed_operation_id === null,
+              canRevert: !operation.is_reverted && operation.reversed_operation_id === null,
             }));
         })
         .sort((left, right) => new Date(right.operation.created_at).getTime() - new Date(left.operation.created_at).getTime());

@@ -36,6 +36,12 @@ const LIST_PAGE_SIZE = 6;
 const CARD_MIN_WIDTH = 280;
 const CARD_GRID_GAP = 16;
 const CARD_ROWS_PER_PAGE = 2;
+const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
+const QUERY_GC_TIME_MS = 30 * 60 * 1000;
+const PRODUCT_OPTION_LIST_HEIGHT = 180;
+const PRODUCT_OPTION_CARD_HEIGHT = 84;
+const PRODUCT_OPTION_GAP = 12;
+const PRODUCT_OPTION_OVERSCAN_ROWS = 1;
 const DEFAULT_NEW_BATCH_FORM: NewBatchFormState = {
   query: "",
   quantity: "",
@@ -212,6 +218,55 @@ function NewBatchModal({
   onClose: () => void;
   onSubmit: () => void;
 }) {
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [columnCount, setColumnCount] = useState(2);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const container = listRef.current;
+    if (!container) {
+      return;
+    }
+
+    const updateColumnCount = () => {
+      setColumnCount(container.clientWidth < 640 ? 1 : 2);
+    };
+
+    updateColumnCount();
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(updateColumnCount);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    setScrollTop(0);
+    if (listRef.current) {
+      listRef.current.scrollTop = 0;
+    }
+  }, [open, searchResults]);
+
+  const totalRows = Math.ceil(searchResults.length / columnCount);
+  const rowHeight = PRODUCT_OPTION_CARD_HEIGHT + PRODUCT_OPTION_GAP;
+  const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - PRODUCT_OPTION_OVERSCAN_ROWS);
+  const visibleRowCount = Math.ceil(PRODUCT_OPTION_LIST_HEIGHT / rowHeight) + PRODUCT_OPTION_OVERSCAN_ROWS * 2;
+  const endRow = Math.min(totalRows, startRow + visibleRowCount);
+  const visibleProducts = searchResults.slice(startRow * columnCount, endRow * columnCount);
+  const paddingTop = startRow * rowHeight;
+  const paddingBottom = Math.max(0, (totalRows - endRow) * rowHeight);
+
   return (
     <AnimatePresence>
       {open ? (
@@ -229,9 +284,9 @@ function NewBatchModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 24 }}
               transition={{ type: "spring", stiffness: 280, damping: 26 }}
-              className="ambient-shadow pointer-events-auto relative flex w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
+              className="ambient-shadow pointer-events-auto relative flex w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
             >
-              <div className="flex items-start justify-between border-b border-surface-container-high px-8 py-6">
+              <div className="flex items-start justify-between border-b border-surface-container-high px-8 py-5">
                 <div>
                   <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">新建批次</h3>
                   <p className="mt-1 text-sm text-on-surface-variant">当前操作会直接调用 Django `/batches` 接口。</p>
@@ -246,7 +301,7 @@ function NewBatchModal({
                 </button>
               </div>
 
-              <div className="space-y-6 px-8 py-8">
+              <div className="space-y-5 px-8 py-6">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-on-surface">搜索货物</label>
                   <div className="relative">
@@ -255,87 +310,112 @@ function NewBatchModal({
                       value={form.query}
                       onChange={(event) => onChange("query", event.target.value)}
                       placeholder="按货物名、条码或厂商搜索"
-                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low py-3 pl-11 pr-4 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low py-3 pl-11 pr-12 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
                     />
+                    {form.query ? (
+                      <button
+                        type="button"
+                        onClick={() => onChange("query", "")}
+                        className="absolute right-3 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-white hover:text-primary"
+                        aria-label="清空搜索"
+                        title="清空搜索"
+                      >
+                        <X size={14} />
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">候选货物</div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {searchResults.length > 0 ? (
-                      searchResults.map((product) => {
-                        const selected = selectedProduct?.id === product.id;
-                        return (
-                          <button
-                            key={product.id}
-                            type="button"
-                            onClick={() => onSelectProduct(product)}
-                            className={cn(
-                              "rounded-2xl border px-4 py-3 text-left transition-all",
-                              selected
-                                ? "border-primary bg-primary/5 shadow-sm"
-                                : "border-slate-200 bg-white hover:border-primary/30 hover:bg-primary/5",
-                            )}
-                          >
-                            <div className="font-bold text-on-surface">{product.product_name}</div>
-                            <div className="mt-1 text-xs text-on-surface-variant">{product.barcode}</div>
-                            <div className="mt-2 text-xs text-on-surface-variant">
-                              {product.manufacturer} · {product.location ?? "未分配库位"}
-                            </div>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-on-surface-variant">
-                        未找到匹配货物。
+                <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">候选货物</div>
+                    <div
+                      ref={listRef}
+                      className="overflow-y-auto pr-1"
+                      style={{ height: `${PRODUCT_OPTION_LIST_HEIGHT}px` }}
+                      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+                    >
+                      {searchResults.length > 0 ? (
+                        <div
+                          className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                          style={{ paddingTop: `${paddingTop}px`, paddingBottom: `${paddingBottom}px` }}
+                        >
+                          {visibleProducts.map((product) => {
+                            const selected = selectedProduct?.id === product.id;
+                            return (
+                              <button
+                                key={product.id}
+                                type="button"
+                                onClick={() => onSelectProduct(product)}
+                                className={cn(
+                                  "h-[84px] rounded-2xl border px-4 py-3 text-left transition-all",
+                                  selected
+                                    ? "border-primary bg-primary/5 shadow-sm"
+                                    : "border-slate-200 bg-white hover:border-primary/30 hover:bg-primary/5",
+                                )}
+                              >
+                                <div className="truncate font-bold text-on-surface">{product.product_name}</div>
+                                <div className="mt-1 truncate text-xs text-on-surface-variant">{product.barcode}</div>
+                                <div className="mt-1 truncate text-xs text-on-surface-variant">
+                                  {product.manufacturer} · {product.location ?? "未分配库位"}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-sm text-on-surface-variant">
+                          未找到匹配货物。
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-1">
+                      <label className="space-y-2">
+                        <span className="text-sm font-semibold text-on-surface">数量 *</span>
+                        <input
+                          value={form.quantity}
+                          onChange={(event) => onChange("quantity", event.target.value)}
+                          placeholder="例如 8.50"
+                          className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-sm font-semibold text-on-surface">生产日期 *</span>
+                        <input
+                          type="date"
+                          value={form.manufactureDate}
+                          onChange={(event) => onChange("manufactureDate", event.target.value)}
+                          className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                        />
+                      </label>
+                    </div>
+                    <label className="space-y-2">
+                      <span className="text-sm font-semibold text-on-surface">备注</span>
+                      <textarea
+                        value={form.remarks}
+                        onChange={(event) => onChange("remarks", event.target.value)}
+                        rows={2}
+                        className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                        placeholder="可选"
+                      />
+                    </label>
+
+                    {selectedProduct ? (
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        已选择：{selectedProduct.product_name} · 保质期 {selectedProduct.shelf_life_days} 天
                       </div>
-                    )}
+                    ) : null}
+
+                    {error ? (
+                      <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="text-sm font-semibold text-on-surface">数量 *</span>
-                    <input
-                      value={form.quantity}
-                      onChange={(event) => onChange("quantity", event.target.value)}
-                      placeholder="例如 8.50"
-                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-semibold text-on-surface">生产日期 *</span>
-                    <input
-                      type="date"
-                      value={form.manufactureDate}
-                      onChange={(event) => onChange("manufactureDate", event.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    />
-                  </label>
-                  <label className="space-y-2 md:col-span-2">
-                    <span className="text-sm font-semibold text-on-surface">备注</span>
-                    <textarea
-                      value={form.remarks}
-                      onChange={(event) => onChange("remarks", event.target.value)}
-                      rows={3}
-                      className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
-                      placeholder="可选"
-                    />
-                  </label>
-                </div>
-
-                {selectedProduct ? (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    已选择：{selectedProduct.product_name} · 保质期 {selectedProduct.shelf_life_days} 天
-                  </div>
-                ) : null}
-
-                {error ? (
-                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
-                ) : null}
-
-                <div className="flex items-center justify-end gap-3 border-t border-surface-container-high pt-6">
+                <div className="flex items-center justify-end gap-3 border-t border-surface-container-high pt-5">
                   <button
                     type="button"
                     onClick={onClose}
@@ -570,10 +650,14 @@ export const InventoryStatusPage: React.FC = () => {
   const productsQuery = useQuery({
     queryKey: queryKeys.products.list(productListParams),
     queryFn: () => listProducts(productListParams),
+    staleTime: QUERY_STALE_TIME_MS,
+    gcTime: QUERY_GC_TIME_MS,
   });
   const batchesQuery = useQuery({
     queryKey: queryKeys.batches.list(batchListParams),
     queryFn: () => listBatches(batchListParams),
+    staleTime: QUERY_STALE_TIME_MS,
+    gcTime: QUERY_GC_TIME_MS,
   });
   const products = productsQuery.data?.items ?? [];
   const inventoryItems = useMemo(() => batchesQuery.data?.items.map(toInventoryRecord) ?? [], [batchesQuery.data]);
@@ -592,9 +676,13 @@ export const InventoryStatusPage: React.FC = () => {
   const sortedItems = useMemo(() => sortInventoryItems(enrichedItems), [enrichedItems]);
   const selectedMetrics = useMemo(() => (selectedItem ? getShelfLifeMetrics(selectedItem) : null), [selectedItem]);
   const batchSearchResults = useMemo(() => {
+    if (!isCreateBatchOpen) {
+      return [];
+    }
+
     const query = deferredQuery.trim().toLowerCase();
     if (!query) {
-      return products.slice(0, 6);
+      return products;
     }
     const exactBarcode = products.find((product) => product.barcode.toLowerCase() === query);
     if (exactBarcode) {
@@ -607,9 +695,8 @@ export const InventoryStatusPage: React.FC = () => {
           product.manufacturer.toLowerCase().includes(query) ||
           product.barcode.toLowerCase().includes(query)
         );
-      })
-      .slice(0, 6);
-  }, [deferredQuery, products]);
+      });
+  }, [deferredQuery, isCreateBatchOpen, products]);
 
   const pageSize = view === "card" ? cardPageSize : LIST_PAGE_SIZE;
   const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize));
