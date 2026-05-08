@@ -15,6 +15,7 @@ import {
   queryKeys,
   toInventoryRecord,
 } from "../../api";
+import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
 import { cn } from "../../lib/utils";
 import { FloatingActionButtons } from "../actions/FloatingActionButtons";
 import { StatCard } from "../dashboard/StatCard";
@@ -30,6 +31,13 @@ interface NewBatchFormState {
   quantity: string;
   manufactureDate: string;
   remarks: string;
+}
+
+interface BatchFeedbackState {
+  type: OperationAlertType;
+  title: string;
+  description: string;
+  detail?: string | null;
 }
 
 const LIST_PAGE_SIZE = 6;
@@ -140,6 +148,18 @@ function getErrorMessage(error: unknown) {
   }
 
   return "请求失败，请稍后重试。";
+}
+
+function getErrorDebugDetail(error: unknown) {
+  if (error instanceof ApiClientError) {
+    return `ApiClientError: status=${error.status}, code=${error.code ?? "null"}, message=${error.message}`;
+  }
+
+  if (error instanceof Error) {
+    return error.stack || error.message;
+  }
+
+  return JSON.stringify(error);
 }
 
 function InventoryOverviewCards({ items }: { items: InventoryRecord[] }) {
@@ -386,6 +406,51 @@ function NewBatchModal({
   );
 }
 
+function BatchFeedbackToast({
+  feedback,
+  open,
+  onClose,
+}: {
+  feedback: BatchFeedbackState | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const isDebugMode = import.meta.env.DEV;
+
+  return (
+    <AnimatePresence>
+      {open && feedback ? (
+        <div className="pointer-events-none fixed inset-x-0 top-6 z-50 flex justify-center px-4">
+          <motion.section
+            initial={{ opacity: 0, y: -24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="pointer-events-auto w-full max-w-2xl"
+          >
+            <OperationAlert
+              title={feedback.title}
+              description={feedback.description}
+              type={feedback.type}
+              showIcon
+              className="ambient-shadow"
+            />
+
+            {isDebugMode && feedback.detail ? (
+              <div className="ambient-shadow mt-3 rounded-3xl border border-surface-container/10 bg-surface-container-lowest px-5 py-4">
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">调试详情</div>
+                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all text-xs leading-6 text-on-surface-variant">
+                  {feedback.detail}
+                </pre>
+              </div>
+            ) : null}
+          </motion.section>
+        </div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
 function InventoryCardView({
   items,
   gridRef,
@@ -586,6 +651,8 @@ export const InventoryStatusPage: React.FC = () => {
   const [newBatchError, setNewBatchError] = useState<string | null>(null);
   const [newBatchForm, setNewBatchForm] = useState<NewBatchFormState>(DEFAULT_NEW_BATCH_FORM);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [batchFeedback, setBatchFeedback] = useState<BatchFeedbackState | null>(null);
+  const [isBatchFeedbackOpen, setIsBatchFeedbackOpen] = useState(false);
   const cardGridRef = useRef<HTMLDivElement | null>(null);
   const deferredQuery = useDeferredValue(newBatchForm.query);
   const productListParams = useMemo(() => ({ page: 1, size: 100 }), []);
@@ -736,11 +803,24 @@ export const InventoryStatusPage: React.FC = () => {
       });
       await reloadPageData();
       await queryClient.invalidateQueries({ queryKey: queryKeys.batches.product(selectedProduct.id) });
+      setBatchFeedback({
+        type: "success",
+        title: "批次创建成功",
+        description: `已为 ${selectedProduct.product_name} 创建新批次，库存列表会自动同步最新结果。`,
+      });
+      setIsBatchFeedbackOpen(true);
       setIsCreateBatchOpen(false);
       setSelectedProduct(null);
       setNewBatchForm(DEFAULT_NEW_BATCH_FORM);
     } catch (error) {
       setNewBatchError(getErrorMessage(error));
+      setBatchFeedback({
+        type: "error",
+        title: "批次创建失败",
+        description: getErrorMessage(error),
+        detail: getErrorDebugDetail(error),
+      });
+      setIsBatchFeedbackOpen(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -755,6 +835,18 @@ export const InventoryStatusPage: React.FC = () => {
       return () => window.clearTimeout(timer);
     }
   }, [isDetailOpen]);
+
+  useEffect(() => {
+    if (!isBatchFeedbackOpen) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setIsBatchFeedbackOpen(false);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [isBatchFeedbackOpen]);
 
   useEffect(() => {
     if (view !== "card") {
@@ -881,6 +973,12 @@ export const InventoryStatusPage: React.FC = () => {
         onSelectProduct={handleSelectProduct}
         onClose={closeCreateBatchModal}
         onSubmit={handleCreateBatch}
+      />
+
+      <BatchFeedbackToast
+        open={isBatchFeedbackOpen}
+        feedback={batchFeedback}
+        onClose={() => setIsBatchFeedbackOpen(false)}
       />
 
       <FloatingActionButtons />
