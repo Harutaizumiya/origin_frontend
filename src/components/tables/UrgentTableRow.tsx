@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { cn } from "../../lib/utils";
 import type { UrgentItem } from "../../types/inventory";
 import { LocationBadge } from "../common/LocationBadge";
@@ -8,7 +8,8 @@ interface UrgentTableRowProps {
   item: UrgentItem;
 }
 
-export const UrgentTableRow: React.FC<UrgentTableRowProps> = ({ item }) => (
+export const UrgentTableRow = memo(function UrgentTableRow({ item }: UrgentTableRowProps) {
+  return (
   <tr className="hover:bg-surface-container-low/30 transition-colors group">
     <td className="px-8 py-5">
       <div className="flex items-center gap-3">
@@ -63,4 +64,5 @@ export const UrgentTableRow: React.FC<UrgentTableRowProps> = ({ item }) => (
       </button>
     </td>
   </tr>
-);
+  );
+});

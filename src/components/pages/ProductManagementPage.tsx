@@ -1,9 +1,7 @@
-import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
-  ChevronLeft,
-  ChevronRight,
   LoaderCircle,
   PackageSearch,
   Pencil,
@@ -15,6 +13,7 @@ import {
 } from "lucide-react";
 import { ApiClientError, createProduct, deleteProduct, listProductCategories, listProducts, queryKeys, updateProduct } from "../../api";
 import { cn } from "../../lib/utils";
+import { Pagination } from "../common/Pagination";
 import type { Product, ProductFilters, ProductFormInput } from "./ProductManagement.types";
 
 const PAGE_SIZE = 8;
@@ -72,59 +71,6 @@ function getErrorMessage(error: unknown) {
   }
 
   return "请求失败，请稍后重试。";
-}
-
-function Pagination({
-  currentPage,
-  totalPages,
-  onPageChange,
-}: {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-t border-surface-container-high pt-6">
-      <div className="text-sm text-on-surface-variant">
-        第 <span className="font-bold text-on-surface">{currentPage}</span> / {totalPages} 页
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="flex items-center gap-2 rounded-xl bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <ChevronLeft size={16} />
-          上一页
-        </button>
-        {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-          <button
-            key={page}
-            type="button"
-            onClick={() => onPageChange(page)}
-            className={cn(
-              "h-10 w-10 rounded-xl text-sm font-bold transition-all",
-              page === currentPage
-                ? "bg-primary text-white shadow-sm"
-                : "bg-surface-container-low text-on-surface-variant hover:text-primary",
-            )}
-          >
-            {page}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="flex items-center gap-2 rounded-xl bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          下一页
-          <ChevronRight size={16} />
-        </button>
-      </div>
-    </div>
-  );
 }
 
 function ProductFormModal({
@@ -448,15 +394,15 @@ export const ProductManagementPage: React.FC = () => {
     setCurrentPage((page) => Math.min(page, totalPages));
   }, [totalPages]);
 
-  const openCreateModal = () => {
+  const openCreateModal = useCallback(() => {
     setEditingProduct(null);
     setForm(EMPTY_FORM);
     setBarcodeError(null);
     setSubmitError(null);
     setIsFormOpen(true);
-  };
+  }, []);
 
-  const openEditModal = (product: Product) => {
+  const openEditModal = useCallback((product: Product) => {
     setEditingProduct(product);
     setBarcodeError(null);
     setSubmitError(null);
@@ -470,52 +416,52 @@ export const ProductManagementPage: React.FC = () => {
       manufacturer: product.manufacturer,
     });
     setIsFormOpen(true);
-  };
+  }, []);
 
-  const resetFormModal = () => {
+  const resetFormModal = useCallback(() => {
     setIsFormOpen(false);
     setEditingProduct(null);
     setBarcodeError(null);
     setSubmitError(null);
     setForm(EMPTY_FORM);
-  };
+  }, []);
 
-  const closeFormModal = () => {
+  const closeFormModal = useCallback(() => {
     if (isSubmitting) {
       return;
     }
     resetFormModal();
-  };
+  }, [isSubmitting, resetFormModal]);
 
-  const handleFormChange = (field: keyof ProductFormInput, value: string) => {
+  const handleFormChange = useCallback((field: keyof ProductFormInput, value: string) => {
     setForm((currentForm) => ({ ...currentForm, [field]: value }));
     if (field === "barcode") {
       setBarcodeError(null);
     }
     setSubmitError(null);
-  };
+  }, []);
 
-  const handleFilterChange = (field: keyof ProductFilters, value: string) => {
+  const handleFilterChange = useCallback((field: keyof ProductFilters, value: string) => {
     setFilters((currentFilters) => ({ ...currentFilters, [field]: value }));
-  };
+  }, []);
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setFilters({
       category: "",
       location: "",
       unit: "",
       query: "",
     });
-  };
+  }, []);
 
-  const reloadAfterMutation = async () => {
+  const reloadAfterMutation = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.products.lists() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.products.categories() }),
     ]);
-  };
+  }, [queryClient]);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!form.barcode.trim() || !form.product_name.trim() || !form.manufacturer.trim() || !form.shelf_life_days.trim()) {
@@ -571,9 +517,9 @@ export const ProductManagementPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [editingProduct, form, products, reloadAfterMutation, resetFormModal]);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!productToDelete) {
       return;
     }
@@ -593,11 +539,23 @@ export const ProductManagementPage: React.FC = () => {
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [closeFormModal, editingProduct?.id, productToDelete, reloadAfterMutation]);
 
-  const openDeleteConfirm = (product: Product) => {
+  const openDeleteConfirm = useCallback((product: Product) => {
     setProductToDelete(product);
-  };
+  }, []);
+
+  const openEditingProductDeleteConfirm = useCallback(() => {
+    if (editingProduct) {
+      openDeleteConfirm(editingProduct);
+    }
+  }, [editingProduct, openDeleteConfirm]);
+
+  const closeDeleteConfirm = useCallback(() => {
+    if (!isDeleting) {
+      setProductToDelete(null);
+    }
+  }, [isDeleting]);
 
   return (
     <>
@@ -793,14 +751,14 @@ export const ProductManagementPage: React.FC = () => {
         submitting={isSubmitting}
         onChange={handleFormChange}
         onClose={closeFormModal}
-        onDelete={() => editingProduct && openDeleteConfirm(editingProduct)}
+        onDelete={openEditingProductDeleteConfirm}
         onSubmit={handleSubmit}
       />
 
       <DeleteConfirmModal
         product={productToDelete}
         deleting={isDeleting}
-        onCancel={() => (isDeleting ? undefined : setProductToDelete(null))}
+        onCancel={closeDeleteConfirm}
         onConfirm={handleDelete}
       />
     </>

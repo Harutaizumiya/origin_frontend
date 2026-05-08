@@ -5,13 +5,30 @@ interface LayoutContextValue {
   isSidebarAnimating: boolean;
 }
 
-const LayoutContext = createContext<LayoutContextValue>({
-  sidebarCollapsed: false,
-  isSidebarAnimating: false,
-});
+const SidebarCollapsedContext = createContext(false);
+const SidebarAnimatingContext = createContext(false);
 
-export const LayoutProvider = LayoutContext.Provider;
+export function LayoutProvider({
+  value,
+  children,
+}: {
+  value: LayoutContextValue;
+  children: React.ReactNode;
+}) {
+  return (
+    <SidebarCollapsedContext.Provider value={value.sidebarCollapsed}>
+      <SidebarAnimatingContext.Provider value={value.isSidebarAnimating}>{children}</SidebarAnimatingContext.Provider>
+    </SidebarCollapsedContext.Provider>
+  );
+}
 
 export function useLayoutContext() {
-  return useContext(LayoutContext);
+  return {
+    sidebarCollapsed: useContext(SidebarCollapsedContext),
+    isSidebarAnimating: useContext(SidebarAnimatingContext),
+  };
+}
+
+export function useSidebarAnimating() {
+  return useContext(SidebarAnimatingContext);
 }

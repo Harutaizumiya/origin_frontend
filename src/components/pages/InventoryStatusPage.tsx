@@ -1,7 +1,7 @@
-import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, ChevronRight, CircleAlert, CircleCheckBig, Clock3, LayoutDashboard, LayoutGrid, List, LoaderCircle, Package, Plus, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { CircleAlert, CircleCheckBig, Clock3, LayoutDashboard, LayoutGrid, List, LoaderCircle, Package, Plus, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import {
   ApiClientError,
   buildInventoryDetail,
@@ -18,6 +18,7 @@ import {
 import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
 import { cn } from "../../lib/utils";
 import { FloatingActionButtons } from "../actions/FloatingActionButtons";
+import { Pagination } from "../common/Pagination";
 import { StatCard } from "../dashboard/StatCard";
 import { InventoryBatchDetailModal } from "./InventoryBatchDetailModal";
 import { InventoryStatusCard } from "./InventoryStatusCard";
@@ -38,6 +39,17 @@ interface BatchFeedbackState {
   title: string;
   description: string;
   detail?: string | null;
+}
+
+interface InventoryViewModel {
+  item: InventoryRecord;
+  metrics: ShelfLifeMetrics;
+  meta: InventoryHealthMeta;
+  quantityValue: number;
+  formattedQuantity: string;
+  formattedManufactureDate: string;
+  formattedExpireDate: string;
+  formattedReceivedDate: string;
 }
 
 const LIST_PAGE_SIZE = 6;
@@ -106,17 +118,30 @@ function getHealthMeta(health: InventoryHealth): InventoryHealthMeta {
   };
 }
 
-function sortInventoryItems(items: InventoryRecord[]) {
+function toInventoryViewModel(item: InventoryRecord): InventoryViewModel {
+  const metrics = getShelfLifeMetrics(item);
+
+  return {
+    item,
+    metrics,
+    meta: getHealthMeta(metrics.health),
+    quantityValue: parseQuantity(item.quantity),
+    formattedQuantity: formatQuantity(item.quantity),
+    formattedManufactureDate: formatDate(item.manufactureDate),
+    formattedExpireDate: formatDate(item.expireDate),
+    formattedReceivedDate: formatDate(item.receivedDate),
+  };
+}
+
+function sortInventoryItems(items: InventoryViewModel[]) {
   return [...items].sort((left, right) => {
-    const leftMetrics = getShelfLifeMetrics(left);
-    const rightMetrics = getShelfLifeMetrics(right);
-    const remainingDaysDiff = leftMetrics.remainingDays - rightMetrics.remainingDays;
+    const remainingDaysDiff = left.metrics.remainingDays - right.metrics.remainingDays;
 
     if (remainingDaysDiff !== 0) {
       return remainingDaysDiff;
     }
 
-    return left.productName.localeCompare(right.productName, "zh-CN");
+    return left.item.productName.localeCompare(right.item.productName, "zh-CN");
   });
 }
 
@@ -162,12 +187,11 @@ function getErrorDebugDetail(error: unknown) {
   return JSON.stringify(error);
 }
 
-function InventoryOverviewCards({ items }: { items: InventoryRecord[] }) {
-  const itemMetrics = items.map((item) => getShelfLifeMetrics(item));
-  const totalQuantity = items.reduce((sum, item) => sum + parseQuantity(item.quantity), 0);
-  const riskBatchCount = itemMetrics.filter((metric) => metric.health !== "healthy").length;
+const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: { items: InventoryViewModel[] }) {
+  const totalQuantity = items.reduce((sum, viewModel) => sum + viewModel.quantityValue, 0);
+  const riskBatchCount = items.filter((viewModel) => viewModel.metrics.health !== "healthy").length;
   const healthyRate = Math.round(
-    (itemMetrics.filter((metric) => metric.health === "healthy").length / Math.max(items.length, 1)) * 100,
+    (items.filter((viewModel) => viewModel.metrics.health === "healthy").length / Math.max(items.length, 1)) * 100,
   );
 
   return (
@@ -210,7 +234,7 @@ function InventoryOverviewCards({ items }: { items: InventoryRecord[] }) {
       />
     </div>
   );
-}
+});
 
 function NewBatchModal({
   open,
@@ -451,12 +475,12 @@ function BatchFeedbackToast({
   );
 }
 
-function InventoryCardView({
+const InventoryCardView = memo(function InventoryCardView({
   items,
   gridRef,
   onOpenDetail,
 }: {
-  items: InventoryRecord[];
+  items: InventoryViewModel[];
   gridRef?: React.Ref<HTMLDivElement>;
   onOpenDetail: (item: InventoryRecord) => void;
 }) {
@@ -466,31 +490,30 @@ function InventoryCardView({
       className="grid justify-items-start gap-4"
       style={{ gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${CARD_MIN_WIDTH}px), 1fr))` }}
     >
-      {items.map((item) => {
-        const metrics = getShelfLifeMetrics(item);
-        const meta = getHealthMeta(metrics.health);
-
+      {items.map((viewModel) => {
         return (
           <InventoryStatusCard
-            key={item.id}
-            item={item}
-            metrics={metrics}
-            meta={meta}
-            formatDate={formatDate}
-            formatQuantity={formatQuantity}
+            key={viewModel.item.id}
+            item={viewModel.item}
+            metrics={viewModel.metrics}
+            meta={viewModel.meta}
+            formattedQuantity={viewModel.formattedQuantity}
+            formattedManufactureDate={viewModel.formattedManufactureDate}
+            formattedExpireDate={viewModel.formattedExpireDate}
+            formattedReceivedDate={viewModel.formattedReceivedDate}
             onOpenDetail={onOpenDetail}
           />
         );
       })}
     </div>
   );
-}
+});
 
-function InventoryListView({
+const InventoryListView = memo(function InventoryListView({
   items,
   onOpenDetail,
 }: {
-  items: InventoryRecord[];
+  items: InventoryViewModel[];
   onOpenDetail: (item: InventoryRecord) => void;
 }) {
   return (
@@ -509,10 +532,8 @@ function InventoryListView({
           </tr>
         </thead>
         <tbody className="divide-y divide-surface-container-low">
-          {items.map((item) => {
-            const metrics = getShelfLifeMetrics(item);
-            const meta = getHealthMeta(metrics.health);
-
+          {items.map((viewModel) => {
+            const { item, metrics, meta } = viewModel;
             return (
               <tr key={item.id} className="transition-colors hover:bg-surface-container-low/30">
                 <td className="px-6 py-5">
@@ -523,9 +544,9 @@ function InventoryListView({
                 </td>
                 <td className="px-6 py-5 text-sm text-on-surface-variant">{item.manufacturer}</td>
                 <td className="px-6 py-5 text-sm text-on-surface-variant">{item.location}</td>
-                <td className="px-6 py-5 text-center font-bold text-on-surface">{formatQuantity(item.quantity)}</td>
-                <td className="px-6 py-5 text-sm text-on-surface-variant">{formatDate(item.manufactureDate)}</td>
-                <td className="px-6 py-5 text-sm text-on-surface-variant">{formatDate(item.expireDate)}</td>
+                <td className="px-6 py-5 text-center font-bold text-on-surface">{viewModel.formattedQuantity}</td>
+                <td className="px-6 py-5 text-sm text-on-surface-variant">{viewModel.formattedManufactureDate}</td>
+                <td className="px-6 py-5 text-sm text-on-surface-variant">{viewModel.formattedExpireDate}</td>
                 <td className="px-6 py-5">
                   <div className="flex min-w-[180px] flex-col gap-2">
                     <div className="flex items-center justify-between text-xs text-on-surface-variant">
@@ -541,7 +562,7 @@ function InventoryListView({
                     </span>
                   </div>
                 </td>
-                <td className="px-6 py-5 text-sm text-on-surface-variant">{formatDate(item.receivedDate)}</td>
+                <td className="px-6 py-5 text-sm text-on-surface-variant">{viewModel.formattedReceivedDate}</td>
               </tr>
             );
           })}
@@ -549,9 +570,9 @@ function InventoryListView({
       </table>
     </div>
   );
-}
+});
 
-function ViewToggle({
+const ViewToggle = memo(function ViewToggle({
   view,
   onChange,
 }: {
@@ -584,58 +605,7 @@ function ViewToggle({
       </button>
     </div>
   );
-}
-
-function Pagination({
-  currentPage,
-  totalPages,
-  onPageChange,
-}: {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-t border-surface-container-high pt-6">
-      <div className="text-sm text-on-surface-variant">
-        第 <span className="font-bold text-on-surface">{currentPage}</span> / {totalPages} 页
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="flex items-center gap-2 rounded-xl bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <ChevronLeft size={16} />
-          上一页
-        </button>
-        {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-          <button
-            key={page}
-            type="button"
-            onClick={() => onPageChange(page)}
-            className={cn(
-              "h-10 w-10 rounded-xl text-sm font-bold transition-all",
-              page === currentPage ? "bg-primary text-white shadow-sm" : "bg-surface-container-low text-on-surface-variant hover:text-primary",
-            )}
-          >
-            {page}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="flex items-center gap-2 rounded-xl bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          下一页
-          <ChevronRight size={16} />
-        </button>
-      </div>
-    </div>
-  );
-}
+});
 
 export const InventoryStatusPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -683,8 +653,14 @@ export const InventoryStatusPage: React.FC = () => {
     () => inventoryItems.map((item) => mergeInventoryRecord(item, productMap.get(item.productId))),
     [inventoryItems, productMap],
   );
-  const sortedItems = useMemo(() => sortInventoryItems(enrichedItems), [enrichedItems]);
-  const selectedMetrics = useMemo(() => (selectedItem ? getShelfLifeMetrics(selectedItem) : null), [selectedItem]);
+  const inventoryViewModels = useMemo(() => enrichedItems.map(toInventoryViewModel), [enrichedItems]);
+  const sortedItems = useMemo(() => sortInventoryItems(inventoryViewModels), [inventoryViewModels]);
+  const selectedMetrics = useMemo(() => {
+    if (!selectedItem) {
+      return null;
+    }
+    return sortedItems.find((viewModel) => viewModel.item.id === selectedItem.id)?.metrics ?? getShelfLifeMetrics(selectedItem);
+  }, [selectedItem, sortedItems]);
   const batchSearchResults = useMemo(() => {
     if (!isCreateBatchOpen) {
       return [];
@@ -713,14 +689,14 @@ export const InventoryStatusPage: React.FC = () => {
   const startIndex = (currentPage - 1) * pageSize;
   const pagedItems = sortedItems.slice(startIndex, startIndex + pageSize);
 
-  const reloadPageData = async () => {
+  const reloadPageData = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.products.lists() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.batches.lists() }),
     ]);
-  };
+  }, [queryClient]);
 
-  const openDetail = async (item: InventoryRecord) => {
+  const openDetail = useCallback(async (item: InventoryRecord) => {
     setSelectedItem(item);
     setIsDetailOpen(true);
     setIsDetailLoading(true);
@@ -740,20 +716,20 @@ export const InventoryStatusPage: React.FC = () => {
     } finally {
       setIsDetailLoading(false);
     }
-  };
+  }, [productMap, queryClient]);
 
-  const closeDetail = () => {
+  const closeDetail = useCallback(() => {
     setIsDetailOpen(false);
-  };
+  }, []);
 
-  const openCreateBatchModal = () => {
+  const openCreateBatchModal = useCallback(() => {
     setIsCreateBatchOpen(true);
     setSelectedProduct(null);
     setNewBatchError(null);
     setNewBatchForm(DEFAULT_NEW_BATCH_FORM);
-  };
+  }, []);
 
-  const closeCreateBatchModal = () => {
+  const closeCreateBatchModal = useCallback(() => {
     if (isSubmitting) {
       return;
     }
@@ -761,23 +737,23 @@ export const InventoryStatusPage: React.FC = () => {
     setSelectedProduct(null);
     setNewBatchError(null);
     setNewBatchForm(DEFAULT_NEW_BATCH_FORM);
-  };
+  }, [isSubmitting]);
 
-  const handleNewBatchChange = (field: keyof NewBatchFormState, value: string) => {
+  const handleNewBatchChange = useCallback((field: keyof NewBatchFormState, value: string) => {
     setNewBatchForm((currentForm) => ({ ...currentForm, [field]: value }));
     setNewBatchError(null);
-  };
+  }, []);
 
-  const handleSelectProduct = (product: Product) => {
+  const handleSelectProduct = useCallback((product: Product) => {
     setSelectedProduct(product);
     setNewBatchError(null);
     setNewBatchForm((currentForm) => ({
       ...currentForm,
       query: product.barcode || product.product_name,
     }));
-  };
+  }, []);
 
-  const handleCreateBatch = async () => {
+  const handleCreateBatch = useCallback(async () => {
     if (!selectedProduct) {
       setNewBatchError("请先选择一个货物。");
       return;
@@ -824,7 +800,11 @@ export const InventoryStatusPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [newBatchForm.manufactureDate, newBatchForm.quantity, newBatchForm.remarks, queryClient, reloadPageData, selectedProduct]);
+
+  const closeBatchFeedback = useCallback(() => {
+    setIsBatchFeedbackOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!isDetailOpen) {
@@ -899,7 +879,7 @@ export const InventoryStatusPage: React.FC = () => {
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-600">{pageError}</div>
       ) : null}
 
-      <InventoryOverviewCards items={enrichedItems} />
+      <InventoryOverviewCards items={inventoryViewModels} />
 
       <section className="ambient-shadow overflow-hidden rounded-3xl border border-surface-container/10 bg-surface-container-lowest">
         <div className="flex flex-col gap-4 border-b border-surface-container-high p-8 xl:flex-row xl:items-center xl:justify-between">
@@ -978,7 +958,7 @@ export const InventoryStatusPage: React.FC = () => {
       <BatchFeedbackToast
         open={isBatchFeedbackOpen}
         feedback={batchFeedback}
-        onClose={() => setIsBatchFeedbackOpen(false)}
+        onClose={closeBatchFeedback}
       />
 
       <FloatingActionButtons />

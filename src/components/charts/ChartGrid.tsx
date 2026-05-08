@@ -1,5 +1,6 @@
 import React from "react";
-import { useLayoutContext } from "../layout/LayoutContext";
+import type { Category, TrendDataPoint } from "../../types/inventory";
+import { useSidebarAnimating } from "../layout/LayoutContext";
 import { DistributionChart } from "./DistributionChart";
 import { TrendChart } from "./TrendChart";
 
@@ -35,8 +36,13 @@ function ChartSkeleton({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export const ChartGrid: React.FC = () => {
-  const { isSidebarAnimating } = useLayoutContext();
+interface ChartGridProps {
+  trendData: TrendDataPoint[];
+  categories: Category[];
+}
+
+export const ChartGrid: React.FC<ChartGridProps> = ({ trendData, categories }) => {
+  const isSidebarAnimating = useSidebarAnimating();
 
   return (
     <div className="mb-8 grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -54,12 +60,12 @@ export const ChartGrid: React.FC = () => {
           </div>
         </div>
 
-        {isSidebarAnimating ? <ChartSkeleton /> : <TrendChart />}
+        {isSidebarAnimating ? <ChartSkeleton /> : <TrendChart data={trendData} />}
       </div>
 
       <div className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8">
         <h4 className="mb-8 font-headline text-lg font-bold text-on-surface">品类库存分布</h4>
-        {isSidebarAnimating ? <ChartSkeleton compact /> : <DistributionChart />}
+        {isSidebarAnimating ? <ChartSkeleton compact /> : <DistributionChart categories={categories} />}
       </div>
     </div>
   );

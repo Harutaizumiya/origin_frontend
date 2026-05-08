@@ -2,7 +2,7 @@ import React from "react";
 import { Download, LayoutDashboard, MoreHorizontal, RefreshCw, Timer, TrendingDown } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { cn } from "../../lib/utils";
-import { useLayoutContext } from "../layout/LayoutContext";
+import { useSidebarAnimating } from "../layout/LayoutContext";
 import { StatCard } from "../dashboard/StatCard";
 
 const ANALYTICS_TREND = [
@@ -93,7 +93,7 @@ function AnalyticsMetrics() {
 }
 
 function AnalyticsCharts() {
-  const { isSidebarAnimating } = useLayoutContext();
+  const isSidebarAnimating = useSidebarAnimating();
 
   return (
     <div className="mb-8 grid grid-cols-1 gap-8 xl:grid-cols-2">

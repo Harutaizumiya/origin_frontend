@@ -1,10 +1,10 @@
-import React from "react";
+import React, { memo } from "react";
 import { motion } from "motion/react";
 import type { StatCardProps } from "../../types/inventory";
 import { cn } from "../../lib/utils";
 import { TrendBadge } from "../common/TrendBadge";
 
-export const StatCard: React.FC<StatCardProps> = ({
+export const StatCard = memo(function StatCard({
   title,
   value,
   trend,
@@ -12,7 +12,8 @@ export const StatCard: React.FC<StatCardProps> = ({
   icon: Icon,
   iconBg,
   iconColor,
-}) => (
+}: StatCardProps) {
+  return (
   <motion.div
     whileHover={{ y: -4 }}
     className="bg-surface-container-lowest p-6 rounded-3xl ambient-shadow border border-surface-container/10"
@@ -34,4 +35,5 @@ export const StatCard: React.FC<StatCardProps> = ({
       {value}
     </h3>
   </motion.div>
-);
+  );
+});

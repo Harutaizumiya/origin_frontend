@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { MainLayout } from "./components/layout/MainLayout";
 
 const DashboardPage = lazy(() => import("./components/pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
@@ -23,11 +24,13 @@ function PageFallback() {
 
 function LayoutWrapper() {
   return (
-    <MainLayout>
-      <Suspense fallback={<PageFallback />}>
-        <Outlet />
-      </Suspense>
-    </MainLayout>
+    <ErrorBoundary>
+      <MainLayout>
+        <Suspense fallback={<PageFallback />}>
+          <Outlet />
+        </Suspense>
+      </MainLayout>
+    </ErrorBoundary>
   );
 }
 

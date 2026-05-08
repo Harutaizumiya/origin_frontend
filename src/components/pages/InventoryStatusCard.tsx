@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo, useCallback } from "react";
 import { cn } from "../../lib/utils";
 import type {
   InventoryHealthMeta,
@@ -10,8 +10,10 @@ interface InventoryStatusCardProps {
   item: InventoryRecord;
   metrics: ShelfLifeMetrics;
   meta: InventoryHealthMeta;
-  formatDate: (date: string) => string;
-  formatQuantity: (quantity: string) => string;
+  formattedQuantity: string;
+  formattedManufactureDate: string;
+  formattedExpireDate: string;
+  formattedReceivedDate: string;
   onOpenDetail: (item: InventoryRecord) => void;
 }
 
@@ -31,23 +33,25 @@ function getOperationsHint(daysUntilExpiry: number) {
   return "正常跟进";
 }
 
-export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
+export const InventoryStatusCard = memo(function InventoryStatusCard({
   item,
   metrics,
   meta,
-  formatDate,
-  formatQuantity,
+  formattedQuantity,
+  formattedManufactureDate,
+  formattedExpireDate,
+  formattedReceivedDate,
   onOpenDetail,
-}) => {
+}: InventoryStatusCardProps) {
   const isCritical = metrics.health === "critical";
-  const openDetail = () => onOpenDetail(item);
+  const openDetail = useCallback(() => onOpenDetail(item), [item, onOpenDetail]);
 
-  const handleKeyDown: React.KeyboardEventHandler<HTMLElement> = (event) => {
+  const handleKeyDown: React.KeyboardEventHandler<HTMLElement> = useCallback((event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       openDetail();
     }
-  };
+  }, [openDetail]);
 
   return (
     <article
@@ -73,7 +77,7 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
       <div className="mb-2.5 flex items-start justify-between gap-2.5 sm:mb-3 sm:gap-3">
         <div className="min-w-0">
           <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-semibold text-slate-400 sm:text-[10px]">
-            <span>数量 {formatQuantity(item.quantity)}</span>
+            <span>数量 {formattedQuantity}</span>
             <span className="text-slate-300">|</span>
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] sm:text-[10px]">
               {item.category}
@@ -123,7 +127,7 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
               生产日期
             </div>
             <div className="mt-1 text-[11px] font-semibold text-slate-900 sm:text-[12px]">
-              {formatDate(item.manufactureDate)}
+              {formattedManufactureDate}
             </div>
           </div>
           <div className="text-right">
@@ -131,7 +135,7 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
               到期日期
             </div>
             <div className="mt-1 text-[11px] font-semibold text-slate-900 sm:text-[12px]">
-              {formatDate(item.expireDate)}
+              {formattedExpireDate}
             </div>
           </div>
         </div>
@@ -143,7 +147,7 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
             收货日期
           </div>
           <div className="text-[11px] font-semibold text-slate-900 sm:text-[12px]">
-            {formatDate(item.receivedDate)}
+            {formattedReceivedDate}
           </div>
         </div>
         <div className="text-right">
@@ -157,4 +161,4 @@ export const InventoryStatusCard: React.FC<InventoryStatusCardProps> = ({
       </div>
     </article>
   );
-};
+});

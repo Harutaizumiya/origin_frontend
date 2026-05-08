@@ -1,12 +1,17 @@
-import React from "react";
+import React, { memo } from "react";
 import { motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
-import { CATEGORIES } from "../../constants/mockData";
 import { cn } from "../../lib/utils";
+import type { Category } from "../../types/inventory";
 
-export const DistributionChart: React.FC = () => (
+interface DistributionChartProps {
+  categories: Category[];
+}
+
+export const DistributionChart = memo(function DistributionChart({ categories }: DistributionChartProps) {
+  return (
   <div className="space-y-6">
-    {CATEGORIES.map((cat) => (
+    {categories.map((cat) => (
       <div key={cat.name} className="space-y-2">
         <div className="flex justify-between text-sm">
           <span className="text-on-surface-variant">{cat.name}</span>
@@ -28,4 +33,5 @@ export const DistributionChart: React.FC = () => (
       </button>
     </div>
   </div>
-);
+  );
+});

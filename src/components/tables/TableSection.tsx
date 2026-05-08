@@ -1,9 +1,15 @@
-import React from "react";
+import React, { memo } from "react";
 import { ArrowRight, RefreshCw } from "lucide-react";
-import { URGENT_ITEMS } from "../../constants/mockData";
+import type { UrgentItem } from "../../types/inventory";
 import { UrgentTableRow } from "./UrgentTableRow";
 
-export const TableSection: React.FC = () => (
+interface TableSectionProps {
+  items: UrgentItem[];
+  lastUpdatedAt: string;
+}
+
+export const TableSection = memo(function TableSection({ items, lastUpdatedAt }: TableSectionProps) {
+  return (
   <section className="bg-surface-container-lowest rounded-3xl ambient-shadow border border-surface-container/10 overflow-hidden">
     <div className="p-8 border-b border-surface-container-high flex justify-between items-center">
       <div>
@@ -16,7 +22,7 @@ export const TableSection: React.FC = () => (
       </div>
       <div className="flex items-center gap-3">
         <span className="text-xs text-on-surface-variant">
-          自动更新于 14:32
+          自动更新于 {lastUpdatedAt}
         </span>
         <button className="text-on-surface-variant hover:text-primary transition-colors">
           <RefreshCw size={16} />
@@ -47,7 +53,7 @@ export const TableSection: React.FC = () => (
           </tr>
         </thead>
         <tbody className="divide-y divide-surface-container-low">
-          {URGENT_ITEMS.map((item) => (
+          {items.map((item) => (
             <UrgentTableRow key={item.id} item={item} />
           ))}
         </tbody>
@@ -61,4 +67,5 @@ export const TableSection: React.FC = () => (
       </button>
     </div>
   </section>
-);
+  );
+});

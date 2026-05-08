@@ -1,7 +1,7 @@
 // 库存到期趋势图表组件
 // 使用柱状图显示未来30天库存到期趋势，按日期分组显示
 
-import React from "react";
+import React, { memo } from "react";
 import {
   BarChart,
   Bar,
@@ -12,13 +12,18 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { TREND_DATA } from "../../constants/mockData";
+import type { TrendDataPoint } from "../../types/inventory";
 
-export const TrendChart: React.FC = () => (
+interface TrendChartProps {
+  data: TrendDataPoint[];
+}
+
+export const TrendChart = memo(function TrendChart({ data }: TrendChartProps) {
+  return (
   <div className="h-64 w-full">
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
-        data={TREND_DATA}
+        data={data}
         margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
       >
         {/* 网格线 */}
@@ -51,7 +56,7 @@ export const TrendChart: React.FC = () => (
         />
         {/* 数据柱状图，根据类型设置不同颜色 */}
         <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={32}>
-          {TREND_DATA.map((entry, index) => (
+          {data.map((entry, index) => (
             <Cell
               key={`cell-${index}`}
               fill={
@@ -67,4 +72,5 @@ export const TrendChart: React.FC = () => (
       </BarChart>
     </ResponsiveContainer>
   </div>
-);
+  );
+});

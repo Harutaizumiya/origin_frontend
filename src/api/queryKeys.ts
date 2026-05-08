@@ -2,6 +2,10 @@ import type { BatchListParams, BatchOperationListParams } from "./batches";
 import type { ProductListParams } from "./products";
 
 export const queryKeys = {
+  dashboard: {
+    all: ["dashboard"] as const,
+    overview: () => [...queryKeys.dashboard.all, "overview"] as const,
+  },
   products: {
     all: ["products"] as const,
     lists: () => [...queryKeys.products.all, "list"] as const,

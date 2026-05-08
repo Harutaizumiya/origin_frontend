@@ -10,6 +10,19 @@ export interface StatCardProps {
   iconColor: string;
 }
 
+export type DashboardStatIcon = "package" | "timer" | "alert" | "shield";
+
+export interface DashboardStat {
+  id: string;
+  title: string;
+  value: string;
+  trend?: string;
+  trendType?: StatCardProps["trendType"];
+  icon: DashboardStatIcon;
+  iconBg: string;
+  iconColor: string;
+}
+
 export interface UrgentItem {
   id: string;
   name: string;
