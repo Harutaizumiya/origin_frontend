@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { Boxes, History, LoaderCircle, MapPin, Package, RotateCcw, TriangleAlert, X } from "lucide-react";
@@ -17,6 +17,7 @@ import {
   type BatchOperationListParams,
 } from "../../api";
 import { cn } from "../../lib/utils";
+import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
 import type { Product } from "./ProductManagement.types";
 
 const FETCH_PAGE_SIZE = 100;
@@ -42,6 +43,13 @@ interface ProductLossCardData {
 
 interface RevertFormState {
   remarks: string;
+}
+
+interface LossFeedbackState {
+  type: OperationAlertType;
+  title: string;
+  description: string;
+  detail?: string | null;
 }
 
 const DEFAULT_FORM: LossFormState = {
@@ -128,6 +136,73 @@ function getErrorMessage(error: unknown) {
   }
 
   return "请求失败，请稍后重试。";
+}
+
+function getErrorDebugDetail(error: unknown) {
+  if (error instanceof ApiClientError) {
+    return `ApiClientError: status=${error.status}, code=${error.code ?? "null"}, message=${error.message}`;
+  }
+
+  if (error instanceof Error) {
+    return error.stack || error.message;
+  }
+
+  return JSON.stringify(error);
+}
+
+function LossFeedbackToast({
+  feedback,
+  open,
+  onClose,
+}: {
+  feedback: LossFeedbackState | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const isDebugMode = import.meta.env.DEV;
+
+  return (
+    <AnimatePresence>
+      {open && feedback ? (
+        <div className="pointer-events-none fixed inset-x-0 top-6 z-50 flex justify-center px-4">
+          <motion.section
+            initial={{ opacity: 0, y: -24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="pointer-events-auto w-full max-w-2xl"
+          >
+            <OperationAlert
+              title={feedback.title}
+              description={feedback.description}
+              type={feedback.type}
+              showIcon
+              className="ambient-shadow"
+            />
+
+            {isDebugMode && feedback.detail ? (
+              <div className="ambient-shadow mt-3 rounded-3xl border border-surface-container/10 bg-surface-container-lowest px-5 py-4">
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">调试详情</div>
+                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all text-xs leading-6 text-on-surface-variant">
+                  {feedback.detail}
+                </pre>
+              </div>
+            ) : null}
+
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center gap-2 rounded-2xl border border-surface-container px-4 py-2 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
+              >
+                关闭
+              </button>
+            </div>
+          </motion.section>
+        </div>
+      ) : null}
+    </AnimatePresence>
+  );
 }
 
 function LossReportModal({
@@ -598,6 +673,8 @@ export const LossReportPage: React.FC = () => {
   const [revertForm, setRevertForm] = useState<RevertFormState>(DEFAULT_REVERT_FORM);
   const [revertError, setRevertError] = useState<string | null>(null);
   const [isReverting, setIsReverting] = useState(false);
+  const [feedback, setFeedback] = useState<LossFeedbackState | null>(null);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
   const productsQuery = useQuery({
     queryKey: [...queryKeys.products.lists(), "all-pages"],
@@ -748,9 +825,22 @@ export const LossReportPage: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: queryKeys.batches.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.operations.all }),
       ]);
+      setFeedback({
+        type: "success",
+        title: "报损提交成功",
+        description: `已为批次 ${selectedBatch.batch_code} 记录报损，货物库存会同步刷新。`,
+      });
+      setIsFeedbackOpen(true);
       closeLossModal();
     } catch (error) {
       setSubmitError(getErrorMessage(error));
+      setFeedback({
+        type: "error",
+        title: "报损提交失败",
+        description: getErrorMessage(error),
+        detail: getErrorDebugDetail(error),
+      });
+      setIsFeedbackOpen(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -791,13 +881,38 @@ export const LossReportPage: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: queryKeys.batches.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.operations.all }),
       ]);
+      setFeedback({
+        type: "success",
+        title: "撤销报损成功",
+        description: `批次 ${revertingEntry.batch.batch_code} 已创建反向操作，库存数量已回滚。`,
+      });
+      setIsFeedbackOpen(true);
       closeRevertModal();
     } catch (error) {
       setRevertError(getErrorMessage(error));
+      setFeedback({
+        type: "error",
+        title: "撤销报损失败",
+        description: getErrorMessage(error),
+        detail: getErrorDebugDetail(error),
+      });
+      setIsFeedbackOpen(true);
     } finally {
       setIsReverting(false);
     }
   };
+
+  useEffect(() => {
+    if (!isFeedbackOpen) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setIsFeedbackOpen(false);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [isFeedbackOpen]);
 
   return (
     <>
@@ -959,6 +1074,12 @@ export const LossReportPage: React.FC = () => {
         onCloseRevert={closeRevertModal}
         onConfirmRevert={handleConfirmRevert}
         onClose={() => setIsHistoryOpen(false)}
+      />
+
+      <LossFeedbackToast
+        open={isFeedbackOpen}
+        feedback={feedback}
+        onClose={() => setIsFeedbackOpen(false)}
       />
     </>
   );

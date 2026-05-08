@@ -640,7 +640,10 @@ export const InventoryStatusPage: React.FC = () => {
     gcTime: QUERY_GC_TIME_MS,
   });
   const products = productsQuery.data?.items ?? [];
-  const inventoryItems = useMemo(() => batchesQuery.data?.items.map(toInventoryRecord) ?? [], [batchesQuery.data]);
+  const inventoryItems = useMemo(
+    () => batchesQuery.data?.items.filter((batch) => parseQuantity(batch.quantity) > 0).map(toInventoryRecord) ?? [],
+    [batchesQuery.data],
+  );
   const isLoading = productsQuery.isLoading || batchesQuery.isLoading;
   const pageError = productsQuery.error
     ? getErrorMessage(productsQuery.error)
@@ -710,7 +713,7 @@ export const InventoryStatusPage: React.FC = () => {
         queryFn: () => listProductBatches(item.productId, relatedBatchParams),
         staleTime: 5 * 60 * 1000,
       });
-      setDetail(buildInventoryDetail(product, relatedBatches.items));
+      setDetail(buildInventoryDetail(product, relatedBatches.items.filter((batch) => parseQuantity(batch.quantity) > 0)));
     } catch {
       setDetail(null);
     } finally {
