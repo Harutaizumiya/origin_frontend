@@ -50,18 +50,6 @@ export interface BatchListParams {
   size?: number;
 }
 
-export interface ExpiryAlertQuery {
-  product_id?: number;
-  status?: string;
-  category?: string;
-  location?: string;
-  expiry_status?: ExpiryStatus;
-  days_lte?: number;
-  include_expired?: boolean;
-  page?: number;
-  size?: number;
-}
-
 export interface BatchOperationListParams {
   operation_type?: BatchOperationType;
   page?: number;
@@ -106,10 +94,6 @@ function buildQuery(params: BatchListParams = {}) {
 
 export async function listBatches(params: BatchListParams = {}) {
   return requestJson<ApiListData<BatchDto>>(`/batches${buildQuery(params)}`);
-}
-
-export async function listExpiryAlerts(params: ExpiryAlertQuery = {}) {
-  return requestJson<ApiListData<BatchDto>>(`/batches/expiry-alerts${buildQuery(params)}`);
 }
 
 export async function createBatch(input: BatchMutationInput) {

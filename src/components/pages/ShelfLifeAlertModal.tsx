@@ -159,7 +159,7 @@ export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void 
       const data = await listBatches(params as Parameters<typeof listBatches>[0]);
       const nowMs = Date.now();
       const alertItems = data.items
-        .filter((batch) => parseQuantity(batch.quantity) > 0)
+        .filter((batch) => batch.status !== "used_up" && parseQuantity(batch.quantity) > 0)
         .map((batch) => toAlertBatchViewModel(batch, nowMs))
         .filter((batch): batch is AlertBatchViewModel => Boolean(batch))
         .sort((left, right) => {

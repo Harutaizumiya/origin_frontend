@@ -641,7 +641,10 @@ export const InventoryStatusPage: React.FC = () => {
   });
   const products = productsQuery.data?.items ?? [];
   const inventoryItems = useMemo(
-    () => batchesQuery.data?.items.filter((batch) => parseQuantity(batch.quantity) > 0).map(toInventoryRecord) ?? [],
+    () =>
+      batchesQuery.data?.items
+        .filter((batch) => batch.status !== "used_up" && parseQuantity(batch.quantity) > 0)
+        .map(toInventoryRecord) ?? [],
     [batchesQuery.data],
   );
   const isLoading = productsQuery.isLoading || batchesQuery.isLoading;
@@ -713,7 +716,12 @@ export const InventoryStatusPage: React.FC = () => {
         queryFn: () => listProductBatches(item.productId, relatedBatchParams),
         staleTime: 5 * 60 * 1000,
       });
-      setDetail(buildInventoryDetail(product, relatedBatches.items.filter((batch) => parseQuantity(batch.quantity) > 0)));
+      setDetail(
+        buildInventoryDetail(
+          product,
+          relatedBatches.items.filter((batch) => batch.status !== "used_up" && parseQuantity(batch.quantity) > 0),
+        ),
+      );
     } catch {
       setDetail(null);
     } finally {
