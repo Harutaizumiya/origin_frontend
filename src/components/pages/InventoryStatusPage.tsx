@@ -22,6 +22,8 @@ import { Pagination } from "../common/Pagination";
 import { StatCard } from "../dashboard/StatCard";
 import { InventoryBatchDetailModal } from "./InventoryBatchDetailModal";
 import { InventoryStatusCard } from "./InventoryStatusCard";
+import { LabelPrintModal } from "./LabelPrintModal";
+import type { LabelPrintPayload } from "../../lib/labelPrinter";
 import type { Product } from "./ProductManagement.types";
 import type { InventoryBatchDetail, InventoryHealth, InventoryHealthMeta, InventoryRecord, ShelfLifeMetrics } from "./InventoryStatus.types";
 
@@ -623,6 +625,8 @@ export const InventoryStatusPage: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [batchFeedback, setBatchFeedback] = useState<BatchFeedbackState | null>(null);
   const [isBatchFeedbackOpen, setIsBatchFeedbackOpen] = useState(false);
+  const [labelPrintPayload, setLabelPrintPayload] = useState<LabelPrintPayload | null>(null);
+  const [isLabelPrintOpen, setIsLabelPrintOpen] = useState(false);
   const cardGridRef = useRef<HTMLDivElement | null>(null);
   const deferredQuery = useDeferredValue(newBatchForm.query);
   const productListParams = useMemo(() => ({ page: 1, size: 100 }), []);
@@ -731,6 +735,40 @@ export const InventoryStatusPage: React.FC = () => {
 
   const closeDetail = useCallback(() => {
     setIsDetailOpen(false);
+  }, []);
+
+  const openLabelPrint = useCallback(() => {
+    if (!selectedItem || !selectedMetrics) {
+      return;
+    }
+
+    const statusLabel =
+      selectedItem.expiryStatus === "expired"
+        ? "已过期"
+        : selectedMetrics.health === "critical"
+          ? "高风险"
+          : selectedMetrics.health === "warning"
+            ? "临期预警"
+            : "效期健康";
+
+    setLabelPrintPayload({
+      productName: selectedItem.productName,
+      barcode: selectedItem.barcode,
+      batchCode: selectedItem.batchCode || selectedItem.id,
+      quantity: formatQuantity(selectedItem.quantity),
+      category: selectedItem.category,
+      location: selectedItem.location,
+      manufacturer: selectedItem.manufacturer,
+      manufactureDate: formatDate(selectedItem.manufactureDate),
+      expireDate: formatDate(selectedItem.expireDate),
+      receivedDate: formatDate(selectedItem.receivedDate),
+      statusLabel,
+    });
+    setIsLabelPrintOpen(true);
+  }, [selectedItem, selectedMetrics]);
+
+  const closeLabelPrint = useCallback(() => {
+    setIsLabelPrintOpen(false);
   }, []);
 
   const openCreateBatchModal = useCallback(() => {
@@ -938,8 +976,15 @@ export const InventoryStatusPage: React.FC = () => {
         detail={detail}
         metrics={selectedMetrics}
         onClose={closeDetail}
+        onPrintLabel={openLabelPrint}
         formatDate={formatDate}
         formatQuantity={formatQuantity}
+      />
+
+      <LabelPrintModal
+        open={isLabelPrintOpen}
+        payload={labelPrintPayload}
+        onClose={closeLabelPrint}
       />
 
       {isDetailOpen && isDetailLoading ? (

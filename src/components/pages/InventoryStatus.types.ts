@@ -73,6 +73,7 @@ export interface InventoryBatchDetailModalProps {
   detail: InventoryBatchDetail | null;
   metrics: ShelfLifeMetrics | null;
   onClose: () => void;
+  onPrintLabel: () => void;
   formatDate: (date: string) => string;
   formatQuantity: (quantity: string) => string;
 }
