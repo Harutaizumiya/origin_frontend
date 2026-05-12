@@ -6,6 +6,7 @@ import {
   ApiClientError,
   buildInventoryDetail,
   createBatch,
+  getBatchLabelPayload,
   getShelfLifeMetricsFromDates,
   listBatches,
   listProductBatches,
@@ -627,6 +628,8 @@ export const InventoryStatusPage: React.FC = () => {
   const [isBatchFeedbackOpen, setIsBatchFeedbackOpen] = useState(false);
   const [labelPrintPayload, setLabelPrintPayload] = useState<LabelPrintPayload | null>(null);
   const [isLabelPrintOpen, setIsLabelPrintOpen] = useState(false);
+  const [isLabelPrintLoading, setIsLabelPrintLoading] = useState(false);
+  const [labelPrintError, setLabelPrintError] = useState<string | null>(null);
   const cardGridRef = useRef<HTMLDivElement | null>(null);
   const deferredQuery = useDeferredValue(newBatchForm.query);
   const productListParams = useMemo(() => ({ page: 1, size: 100 }), []);
@@ -737,35 +740,57 @@ export const InventoryStatusPage: React.FC = () => {
     setIsDetailOpen(false);
   }, []);
 
-  const openLabelPrint = useCallback(() => {
-    if (!selectedItem || !selectedMetrics) {
+  const openLabelPrint = useCallback(async () => {
+    if (!selectedItem) {
       return;
     }
 
-    const statusLabel =
-      selectedItem.expiryStatus === "expired"
-        ? "已过期"
-        : selectedMetrics.health === "critical"
-          ? "高风险"
-          : selectedMetrics.health === "warning"
-            ? "临期预警"
-            : "效期健康";
-
-    setLabelPrintPayload({
-      productName: selectedItem.productName,
-      barcode: selectedItem.barcode,
-      batchCode: selectedItem.batchCode || selectedItem.id,
-      quantity: formatQuantity(selectedItem.quantity),
-      category: selectedItem.category,
-      location: selectedItem.location,
-      manufacturer: selectedItem.manufacturer,
-      manufactureDate: formatDate(selectedItem.manufactureDate),
-      expireDate: formatDate(selectedItem.expireDate),
-      receivedDate: formatDate(selectedItem.receivedDate),
-      statusLabel,
-    });
+    const batchId = Number(selectedItem.id);
     setIsLabelPrintOpen(true);
-  }, [selectedItem, selectedMetrics]);
+    setIsLabelPrintLoading(true);
+    setLabelPrintError(null);
+    setLabelPrintPayload(null);
+
+    if (!Number.isFinite(batchId)) {
+      setLabelPrintError("当前批次 ID 无效，无法加载二维码凭证。");
+      setIsLabelPrintLoading(false);
+      return;
+    }
+
+    try {
+      const payload = await queryClient.fetchQuery({
+        queryKey: queryKeys.batches.labelPayload(batchId),
+        queryFn: () => getBatchLabelPayload(batchId),
+        staleTime: 60 * 1000,
+      });
+
+      setLabelPrintPayload({
+        productName: payload.productName,
+        barcode: payload.barcode,
+        batchCode: payload.batchCode,
+        quantity: payload.quantity ?? formatQuantity(selectedItem.quantity),
+        category: selectedItem.category || "未分类",
+        location: payload.location ?? selectedItem.location ?? "未分配库位",
+        manufacturer: selectedItem.manufacturer,
+        manufactureDate: formatDate(selectedItem.manufactureDate),
+        expireDate: payload.expireDate ?? "-",
+        receivedDate: formatDate(selectedItem.receivedDate),
+        statusLabel:
+          selectedItem.expiryStatus === "expired"
+            ? "已过期"
+            : selectedMetrics?.health === "critical"
+              ? "高风险"
+              : selectedMetrics?.health === "warning"
+                ? "临期预警"
+                : "效期健康",
+        qrCode: payload.qrCode,
+      });
+    } catch (error) {
+      setLabelPrintError(getErrorMessage(error));
+    } finally {
+      setIsLabelPrintLoading(false);
+    }
+  }, [queryClient, selectedItem, selectedMetrics]);
 
   const closeLabelPrint = useCallback(() => {
     setIsLabelPrintOpen(false);
@@ -984,7 +1009,10 @@ export const InventoryStatusPage: React.FC = () => {
       <LabelPrintModal
         open={isLabelPrintOpen}
         payload={labelPrintPayload}
+        loading={isLabelPrintLoading}
+        error={labelPrintError}
         onClose={closeLabelPrint}
+        onRetry={openLabelPrint}
       />
 
       {isDetailOpen && isDetailLoading ? (

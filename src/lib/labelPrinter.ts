@@ -1,3 +1,5 @@
+import QRCode from "qrcode";
+
 export type LabelPrinterProtocol = "tspl" | "zpl" | "escpos" | "browser";
 export type LabelPrinterTransport = "webusb" | "webserial" | "browser";
 
@@ -13,6 +15,7 @@ export interface LabelPrintPayload {
   expireDate: string;
   receivedDate: string;
   statusLabel: string;
+  qrCode: string;
 }
 
 export interface LabelPrinterOptions {
@@ -74,6 +77,25 @@ function encode(command: string) {
   return new TextEncoder().encode(command);
 }
 
+function assertQrCode(payload: LabelPrintPayload) {
+  if (!payload.qrCode.trim()) {
+    throw new Error("二维码凭证未加载，不能发送打印命令。");
+  }
+}
+
+function concatBytes(chunks: Array<Uint8Array | number[]>) {
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const output = new Uint8Array(totalLength);
+  let offset = 0;
+
+  chunks.forEach((chunk) => {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  });
+
+  return output;
+}
+
 function buildTsplCommand(payload: LabelPrintPayload, options: LabelPrinterOptions) {
   const copies = clamp(Math.floor(options.copies), 1, 99);
   const density = clamp(Math.floor(options.density), 1, 15);
@@ -86,10 +108,11 @@ function buildTsplCommand(payload: LabelPrintPayload, options: LabelPrinterOptio
     "CLS",
     `TEXT 24,18,"TSS24.BF2",0,1,1,"${escapeTspl(text(payload.productName))}"`,
     `TEXT 24,50,"TSS24.BF2",0,1,1,"批次 ${escapeTspl(text(payload.batchCode))}"`,
-    `BARCODE 24,82,"128",58,1,0,2,2,"${escapeTspl(text(payload.barcode, payload.batchCode))}"`,
-    `TEXT 24,154,"TSS24.BF2",0,1,1,"数量 ${escapeTspl(text(payload.quantity))}  库位 ${escapeTspl(text(payload.location))}"`,
-    `TEXT 24,184,"TSS24.BF2",0,1,1,"到期 ${escapeTspl(text(payload.expireDate))}  ${escapeTspl(text(payload.statusLabel))}"`,
-    `TEXT 24,214,"TSS24.BF2",0,1,1,"厂商 ${escapeTspl(text(payload.manufacturer))}"`,
+    `QRCODE 352,76,L,4,A,0,"${escapeTspl(text(payload.qrCode))}"`,
+    `BARCODE 24,84,"128",54,1,0,2,2,"${escapeTspl(text(payload.barcode, payload.batchCode))}"`,
+    `TEXT 24,156,"TSS24.BF2",0,1,1,"数量 ${escapeTspl(text(payload.quantity))}  库位 ${escapeTspl(text(payload.location))}"`,
+    `TEXT 24,186,"TSS24.BF2",0,1,1,"到期 ${escapeTspl(text(payload.expireDate))}  ${escapeTspl(text(payload.statusLabel))}"`,
+    `TEXT 24,216,"TSS24.BF2",0,1,1,"二维码凭证已加载"`,
     `PRINT ${copies},1`,
   ];
 
@@ -101,6 +124,7 @@ function buildZplCommand(payload: LabelPrintPayload, options: LabelPrinterOption
   const width = mmToDots(options.labelWidthMm);
   const height = mmToDots(options.labelHeightMm);
   const barcodeValue = escapeZpl(text(payload.barcode, payload.batchCode));
+  const qrValue = escapeZpl(text(payload.qrCode));
   const rows = [
     "^XA",
     "^CI28",
@@ -108,11 +132,12 @@ function buildZplCommand(payload: LabelPrintPayload, options: LabelPrinterOption
     `^LL${height}`,
     `^FO24,18^A0N,28,28^FD${escapeZpl(text(payload.productName))}^FS`,
     `^FO24,52^A0N,22,22^FD批次 ${escapeZpl(text(payload.batchCode))}^FS`,
+    `^FO352,76^BQN,2,4^FDLA,${qrValue}^FS`,
     "^BY2,2,58",
     `^FO24,82^BCN,58,Y,N,N^FD${barcodeValue}^FS`,
     `^FO24,168^A0N,22,22^FD数量 ${escapeZpl(text(payload.quantity))}  库位 ${escapeZpl(text(payload.location))}^FS`,
     `^FO24,198^A0N,22,22^FD到期 ${escapeZpl(text(payload.expireDate))}  ${escapeZpl(text(payload.statusLabel))}^FS`,
-    `^FO24,228^A0N,22,22^FD厂商 ${escapeZpl(text(payload.manufacturer))}^FS`,
+    `^FO24,228^A0N,22,22^FD二维码凭证已加载^FS`,
     `^PQ${copies}`,
     "^XZ",
   ];
@@ -120,44 +145,64 @@ function buildZplCommand(payload: LabelPrintPayload, options: LabelPrinterOption
   return rows.join("\n");
 }
 
+function buildEscPosQrStoreCommand(value: string) {
+  const qrBytes = encode(value);
+  const length = qrBytes.length + 3;
+  const pL = length % 256;
+  const pH = Math.floor(length / 256);
+
+  return concatBytes([[0x1d, 0x28, 0x6b, pL, pH, 0x31, 0x50, 0x30], qrBytes]);
+}
+
 function buildEscPosCommand(payload: LabelPrintPayload, options: LabelPrinterOptions) {
   const copies = clamp(Math.floor(options.copies), 1, 99);
   const barcode = text(payload.barcode, payload.batchCode);
-  const body = [
-    "\x1B@",
-    "\x1Ba\x00",
-    "\x1B!\x20",
-    `${text(payload.productName)}\n`,
-    "\x1B!\x00",
-    `批次 ${text(payload.batchCode)}\n`,
-    `数量 ${text(payload.quantity)}  库位 ${text(payload.location)}\n`,
-    `生产 ${text(payload.manufactureDate)}\n`,
-    `到期 ${text(payload.expireDate)}  ${text(payload.statusLabel)}\n`,
-    `厂商 ${text(payload.manufacturer)}\n`,
-    "\n",
-    "\x1Da\x01",
-    "\x1DhP",
-    "\x1Dw\x02",
-    `\x1DkI${String.fromCharCode(barcode.length)}${barcode}`,
-    "\n\n\x1DV\x00",
-  ].join("");
+  const barcodeBytes = encode(barcode);
+  const body = concatBytes([
+    [0x1b, 0x40, 0x1b, 0x61, 0x00, 0x1b, 0x21, 0x20],
+    encode(`${text(payload.productName)}\n`),
+    [0x1b, 0x21, 0x00],
+    encode(`批次 ${text(payload.batchCode)}\n`),
+    encode(`数量 ${text(payload.quantity)}  库位 ${text(payload.location)}\n`),
+    encode(`到期 ${text(payload.expireDate)}  ${text(payload.statusLabel)}\n`),
+    encode("二维码凭证已加载\n\n"),
+    [0x1b, 0x61, 0x01],
+    [0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00],
+    [0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x06],
+    [0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31],
+    buildEscPosQrStoreCommand(text(payload.qrCode)),
+    [0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30],
+    encode("\n"),
+    [0x1d, 0x68, 0x50, 0x1d, 0x77, 0x02, 0x1d, 0x6b, 0x49, barcodeBytes.length],
+    barcodeBytes,
+    [0x0a, 0x0a, 0x1d, 0x56, 0x00],
+  ]);
 
-  return Array.from({ length: copies }, () => body).join("");
+  return concatBytes(Array.from({ length: copies }, () => body));
 }
 
 export function buildLabelPrintCommand(payload: LabelPrintPayload, options: LabelPrinterOptions) {
+  assertQrCode(payload);
+
   if (options.protocol === "zpl") {
     return encode(buildZplCommand(payload, options));
   }
 
   if (options.protocol === "escpos") {
-    return encode(buildEscPosCommand(payload, options));
+    return buildEscPosCommand(payload, options);
   }
 
   return encode(buildTsplCommand(payload, options));
 }
 
-function getPrintableHtml(payload: LabelPrintPayload, options: LabelPrinterOptions) {
+export async function buildBrowserLabelHtml(payload: LabelPrintPayload, options: LabelPrinterOptions) {
+  assertQrCode(payload);
+
+  const qrCodeDataUrl = await QRCode.toDataURL(text(payload.qrCode), {
+    errorCorrectionLevel: "M",
+    margin: 1,
+    width: 160,
+  });
   const safe = (value: string) =>
     text(value)
       .replace(/&/g, "&amp;")
@@ -184,9 +229,12 @@ function getPrintableHtml(payload: LabelPrintPayload, options: LabelPrinterOptio
       page-break-after: always;
     }
     h1 { margin: 0; font-size: 13pt; line-height: 1.2; }
+    .body { display: grid; grid-template-columns: minmax(0, 1fr) 19mm; gap: 2mm; align-items: start; }
     .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 2mm; font-size: 7.5pt; }
     .barcode { margin-top: 1mm; border: 1px solid #111; padding: 1.5mm; text-align: center; font: 700 11pt monospace; letter-spacing: 1px; }
     .batch { font-size: 8.5pt; font-weight: 700; }
+    .qr { width: 19mm; height: 19mm; object-fit: contain; }
+    .qr-caption { font-size: 6.5pt; text-align: center; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -195,14 +243,22 @@ function getPrintableHtml(payload: LabelPrintPayload, options: LabelPrinterOptio
       () => `<section class="label">
         <h1>${safe(payload.productName)}</h1>
         <div class="batch">批次 ${safe(payload.batchCode)}</div>
-        <div class="barcode">${safe(text(payload.barcode, payload.batchCode))}</div>
-        <div class="meta">
-          <span>数量 ${safe(payload.quantity)}</span>
-          <span>库位 ${safe(payload.location)}</span>
-          <span>生产 ${safe(payload.manufactureDate)}</span>
-          <span>到期 ${safe(payload.expireDate)}</span>
-          <span>分类 ${safe(payload.category)}</span>
-          <span>${safe(payload.statusLabel)}</span>
+        <div class="body">
+          <div>
+            <div class="barcode">${safe(text(payload.barcode, payload.batchCode))}</div>
+            <div class="meta">
+              <span>数量 ${safe(payload.quantity)}</span>
+              <span>库位 ${safe(payload.location)}</span>
+              <span>生产 ${safe(payload.manufactureDate)}</span>
+              <span>到期 ${safe(payload.expireDate)}</span>
+              <span>分类 ${safe(payload.category)}</span>
+              <span>${safe(payload.statusLabel)}</span>
+            </div>
+          </div>
+          <div>
+            <img class="qr" src="${qrCodeDataUrl}" alt="二维码凭证" />
+            <div class="qr-caption">凭证已加载</div>
+          </div>
         </div>
         <div class="meta"><span>厂商 ${safe(payload.manufacturer)}</span><span>收货 ${safe(payload.receivedDate)}</span></div>
       </section>`,
@@ -221,7 +277,7 @@ async function printViaBrowser(payload: LabelPrintPayload, options: LabelPrinter
   }
 
   printWindow.document.open();
-  printWindow.document.write(getPrintableHtml(payload, options));
+  printWindow.document.write(await buildBrowserLabelHtml(payload, options));
   printWindow.document.close();
 }
 

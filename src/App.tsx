@@ -13,6 +13,7 @@ const InventoryStatusPage = lazy(() =>
 const LossReportPage = lazy(() => import("./components/pages/LossReportPage").then((module) => ({ default: module.LossReportPage })));
 const AnalyticsPage = lazy(() => import("./components/pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
 const SettingsPage = lazy(() => import("./components/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
+const QrScanPage = lazy(() => import("./components/pages/QrScanPage").then((module) => ({ default: module.QrScanPage })));
 
 function PageFallback() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/products" element={<ProductManagementPage />} />
           <Route path="/inventory-status" element={<InventoryStatusPage />} />
           <Route path="/loss-report" element={<LossReportPage />} />
+          <Route path="/qr-scan" element={<QrScanPage />} />
           <Route path="/analysis" element={<AnalyticsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

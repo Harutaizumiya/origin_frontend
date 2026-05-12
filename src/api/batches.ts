@@ -81,6 +81,16 @@ export interface BatchOperationMutationResult {
   batch: BatchDto;
 }
 
+export interface BatchLabelPayloadDto {
+  batchCode: string;
+  productName: string;
+  barcode: string;
+  quantity: string | null;
+  location: string | null;
+  expireDate: string | null;
+  qrCode: string;
+}
+
 function buildQuery(params: BatchListParams = {}) {
   const searchParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -117,6 +127,10 @@ export async function listProductBatches(productId: number, params: Omit<BatchLi
 
 export async function listBatchOperations(batchId: number, params: BatchOperationListParams = {}) {
   return requestJson<ApiListData<BatchOperationDto>>(`/batches/${batchId}/operations${buildQuery(params)}`);
+}
+
+export async function getBatchLabelPayload(batchId: number) {
+  return requestJson<BatchLabelPayloadDto>(`/batches/${batchId}/label-payload`);
 }
 
 export async function createBatchOperation(batchId: number, input: BatchOperationMutationInput) {

@@ -19,6 +19,7 @@ export const queryKeys = {
     product: (productId: number) => [...queryKeys.batches.all, "product", productId] as const,
     byProduct: (productId: number, params: Omit<BatchListParams, "product_id"> = {}) =>
       [...queryKeys.batches.product(productId), params] as const,
+    labelPayload: (batchId: number) => [...queryKeys.batches.all, "label-payload", batchId] as const,
   },
   operations: {
     all: ["batch-operations"] as const,

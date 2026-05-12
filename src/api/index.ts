@@ -3,5 +3,6 @@ export * from "./batches";
 export * from "./dashboard";
 export * from "./inventory";
 export * from "./products";
+export * from "./qrScans";
 export * from "./queryKeys";
 export * from "./types";

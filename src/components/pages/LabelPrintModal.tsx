@@ -14,7 +14,10 @@ import { cn } from "../../lib/utils";
 interface LabelPrintModalProps {
   open: boolean;
   payload: LabelPrintPayload | null;
+  loading?: boolean;
+  error?: string | null;
   onClose: () => void;
+  onRetry?: () => void;
 }
 
 interface PrintFeedback {
@@ -35,10 +38,11 @@ const TRANSPORT_OPTIONS: Array<{ value: LabelPrinterTransport; label: string; ic
   { value: "browser", label: "浏览器打印", icon: <MonitorUp size={16} />, hint: "不发原始指令，由系统驱动处理" },
 ];
 
-export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload, onClose }) => {
+export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload, loading = false, error = null, onClose, onRetry }) => {
   const [options, setOptions] = useState<LabelPrinterOptions>(DEFAULT_LABEL_PRINTER_OPTIONS);
   const [printing, setPrinting] = useState(false);
   const [feedback, setFeedback] = useState<PrintFeedback | null>(null);
+  const canPrint = Boolean(payload?.qrCode.trim()) && !loading && !error;
 
   const effectiveOptions = useMemo<LabelPrinterOptions>(() => {
     if (options.transport === "browser") {
@@ -58,7 +62,11 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
   }, []);
 
   const handlePrint = useCallback(async () => {
-    if (!payload) {
+    if (!payload?.qrCode.trim()) {
+      setFeedback({
+        type: "error",
+        message: "二维码凭证未加载，不能发送打印命令。",
+      });
       return;
     }
 
@@ -83,7 +91,7 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
 
   return (
     <AnimatePresence>
-      {open && payload ? (
+      {open ? (
         <>
           <motion.div
             initial={{ opacity: 0 }}
@@ -239,14 +247,45 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-5">
                   <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">标签预览数据</div>
-                  <div className="grid gap-3 text-sm text-on-surface-variant md:grid-cols-2">
-                    <div className="font-bold text-on-surface">{payload.productName}</div>
-                    <div>条码 {payload.barcode || payload.batchCode}</div>
-                    <div>批次 {payload.batchCode}</div>
-                    <div>数量 {payload.quantity}</div>
-                    <div>库位 {payload.location}</div>
-                    <div>到期 {payload.expireDate}</div>
-                  </div>
+                  {loading ? (
+                    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-on-surface-variant">
+                      <LoaderCircle size={18} className="animate-spin" />
+                      正在从后端加载二维码凭证...
+                    </div>
+                  ) : error ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-600">
+                      <div className="font-bold">二维码凭证加载失败</div>
+                      <div className="mt-1">{error}</div>
+                      {onRetry ? (
+                        <button
+                          type="button"
+                          onClick={onRetry}
+                          className="mt-3 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50"
+                        >
+                          重新加载
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : payload ? (
+                    <div className="grid gap-3 text-sm text-on-surface-variant md:grid-cols-2">
+                      <div className="font-bold text-on-surface">{payload.productName}</div>
+                      <div>条码 {payload.barcode || payload.batchCode}</div>
+                      <div>批次 {payload.batchCode}</div>
+                      <div>数量 {payload.quantity}</div>
+                      <div>库位 {payload.location}</div>
+                      <div>到期 {payload.expireDate}</div>
+                      <div className="font-semibold text-emerald-700">二维码凭证已加载</div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-on-surface-variant">
+                      尚未加载标签数据。
+                    </div>
+                  )}
+                  {effectiveOptions.protocol === "escpos" ? (
+                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+                      ESC/POS 二维码指令存在机型差异；若设备不响应，请切换 TSPL、ZPL 或浏览器打印。
+                    </div>
+                  ) : null}
                 </section>
 
                 {feedback ? (
@@ -274,7 +313,7 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
                 <button
                   type="button"
                   onClick={handlePrint}
-                  disabled={printing}
+                  disabled={printing || !canPrint}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {printing ? <LoaderCircle size={16} className="animate-spin" /> : <Printer size={16} />}
