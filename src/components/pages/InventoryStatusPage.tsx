@@ -786,7 +786,11 @@ export const InventoryStatusPage: React.FC = () => {
         qrCode: payload.qrCode,
       });
     } catch (error) {
-      setLabelPrintError(getErrorMessage(error));
+      if (error instanceof ApiClientError && error.status === 409) {
+        setLabelPrintError("后端二维码凭证签发失败（409 conflict）。请确认后端已创建 batch_qr_credentials 表并完成二维码审计相关数据库初始化。");
+      } else {
+        setLabelPrintError(getErrorMessage(error));
+      }
     } finally {
       setIsLabelPrintLoading(false);
     }

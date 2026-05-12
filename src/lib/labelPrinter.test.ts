@@ -26,12 +26,18 @@ function decode(command: Uint8Array) {
 }
 
 describe("label printer QR commands", () => {
+  it("uses a landscape 60mm by 40mm label by default", () => {
+    expect(DEFAULT_LABEL_PRINTER_OPTIONS.labelWidthMm).toBe(60);
+    expect(DEFAULT_LABEL_PRINTER_OPTIONS.labelHeightMm).toBe(40);
+  });
+
   it("includes qrCode in TSPL output", () => {
     const command = decode(buildLabelPrintCommand(payload, { ...DEFAULT_LABEL_PRINTER_OPTIONS, protocol: "tspl" }));
 
     expect(command).toContain("QRCODE");
     expect(command).toContain(payload.qrCode);
-    expect(command).toContain("二维码凭证已加载");
+    expect(command).toContain("存储位置");
+    expect(command).toContain("打印:");
   });
 
   it("includes qrCode in ZPL output", () => {
@@ -39,7 +45,8 @@ describe("label printer QR commands", () => {
 
     expect(command).toContain("^BQN");
     expect(command).toContain(`LA,${payload.qrCode}`);
-    expect(command).toContain("二维码凭证已加载");
+    expect(command).toContain("存储位置");
+    expect(command).toContain("打印:");
   });
 
   it("includes ESC/POS QR command bytes", () => {
@@ -54,7 +61,9 @@ describe("label printer QR commands", () => {
     const html = await buildBrowserLabelHtml(payload, { ...DEFAULT_LABEL_PRINTER_OPTIONS, protocol: "browser", transport: "browser" });
 
     expect(html).toContain("<img class=\"qr\"");
-    expect(html).toContain("凭证已加载");
+    expect(html).toContain("存储位置");
+    expect(html).toContain("打印时间");
+    expect(html).toContain("white-space: nowrap");
     expect(html).not.toContain(payload.qrCode);
   });
 });

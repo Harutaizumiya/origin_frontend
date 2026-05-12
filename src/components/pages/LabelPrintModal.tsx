@@ -1,8 +1,12 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Cable, CheckCircle2, LoaderCircle, MonitorUp, Printer, Usb, X } from "lucide-react";
 import {
   DEFAULT_LABEL_PRINTER_OPTIONS,
+  buildLabelQrDataUrl,
+  formatPrintTimestamp,
+  getLabelTitleFontSize,
+  getLabelValueFontSize,
   sendLabelPrintCommand,
   type LabelPrintPayload,
   type LabelPrinterOptions,
@@ -38,10 +42,105 @@ const TRANSPORT_OPTIONS: Array<{ value: LabelPrinterTransport; label: string; ic
   { value: "browser", label: "浏览器打印", icon: <MonitorUp size={16} />, hint: "不发原始指令，由系统驱动处理" },
 ];
 
+const LabelPreview: React.FC<{
+  payload: LabelPrintPayload;
+  qrDataUrl: string | null;
+  printTime: string;
+  options: LabelPrinterOptions;
+}> = ({ payload, qrDataUrl, printTime, options }) => {
+  const rows = [
+    { label: "存储位置", value: payload.location, fontSize: getLabelValueFontSize(payload.location) },
+    { label: "生产日期", value: payload.manufactureDate, fontSize: getLabelValueFontSize(payload.manufactureDate) },
+    { label: "到期日期", value: payload.expireDate, fontSize: getLabelValueFontSize(payload.expireDate) },
+    { label: "打印时间", value: printTime, fontSize: getLabelValueFontSize(printTime, 7.1, 4.9) },
+  ];
+  const titleFontSize = getLabelTitleFontSize(payload.productName);
+  const landscape = options.labelWidthMm >= options.labelHeightMm;
+  const previewWidth = landscape ? 560 : 320;
+  const previewAspectRatio = `${options.labelWidthMm} / ${options.labelHeightMm}`;
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-slate-100 p-4">
+      <div
+        className="mx-auto bg-white p-[18px] text-black shadow-sm"
+        style={{
+          width: `${previewWidth}px`,
+          maxWidth: "100%",
+          aspectRatio: previewAspectRatio,
+        }}
+      >
+        <div
+          className={cn(
+            "grid h-full overflow-hidden rounded-[18px] border-[5px] border-black px-[18px] py-[18px]",
+            landscape ? "grid-rows-[auto_5px_minmax(0,1fr)] gap-y-[12px]" : "grid-rows-[auto_5px_168px_minmax(0,1fr)] gap-y-[14px]",
+          )}
+        >
+          <h4
+            className="overflow-hidden whitespace-nowrap font-black leading-none tracking-normal"
+            style={{ fontSize: `${titleFontSize * (landscape ? 2.35 : 3.55)}px` }}
+          >
+            {payload.productName}
+          </h4>
+          <div className="h-[5px] bg-black" />
+          <div
+            className={cn(
+              "grid min-h-0 min-w-0",
+              landscape ? "grid-cols-[150px_5px_minmax(0,1fr)] gap-x-[18px]" : "grid-rows-[168px_minmax(0,1fr)] gap-y-[14px]",
+            )}
+          >
+            <div className="flex min-h-0 items-center justify-center">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt="二维码凭证预览"
+                  className={cn("object-contain [image-rendering:pixelated]", landscape ? "h-[150px] w-[150px]" : "h-[168px] w-[168px]")}
+                />
+              ) : (
+                <div
+                  className={cn(
+                    "flex items-center justify-center border-4 border-black text-sm font-black",
+                    landscape ? "h-[150px] w-[150px]" : "h-[168px] w-[168px]",
+                  )}
+                >
+                  QR
+                </div>
+              )}
+            </div>
+            {landscape ? <div className="h-full w-[5px] bg-black" /> : null}
+            <div className="grid min-w-0 grid-rows-4">
+              {rows.map(({ label, value, fontSize }, index) => (
+                <div
+                  key={label}
+                  className={cn(
+                    "grid min-h-0 items-center gap-x-[4px]",
+                    landscape ? "grid-cols-[80px_14px_minmax(0,1fr)] py-[2px]" : "grid-cols-[96px_16px_minmax(0,1fr)] py-[3px]",
+                    index < rows.length - 1 ? "border-b-[3px] border-black" : "",
+                  )}
+                >
+                  <div className={cn("whitespace-nowrap font-black", landscape ? "text-[18px]" : "text-[20px]")}>{label}</div>
+                  <div className={cn("text-center font-black", landscape ? "text-[18px]" : "text-[20px]")}>:</div>
+                  <div
+                    className="min-w-0 overflow-hidden whitespace-nowrap font-black leading-none"
+                    style={{ fontSize: `${fontSize * (landscape ? 2.25 : 2.62)}px` }}
+                  >
+                    {value || "-"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload, loading = false, error = null, onClose, onRetry }) => {
   const [options, setOptions] = useState<LabelPrinterOptions>(DEFAULT_LABEL_PRINTER_OPTIONS);
   const [printing, setPrinting] = useState(false);
   const [feedback, setFeedback] = useState<PrintFeedback | null>(null);
+  const [previewQrDataUrl, setPreviewQrDataUrl] = useState<string | null>(null);
+  const [previewPrintTime, setPreviewPrintTime] = useState(() => formatPrintTimestamp());
   const canPrint = Boolean(payload?.qrCode.trim()) && !loading && !error;
 
   const effectiveOptions = useMemo<LabelPrinterOptions>(() => {
@@ -60,6 +159,33 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
     setOptions((currentOptions) => ({ ...currentOptions, [key]: value }));
     setFeedback(null);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!payload?.qrCode.trim()) {
+      setPreviewQrDataUrl(null);
+      return;
+    }
+
+    setPreviewPrintTime(formatPrintTimestamp());
+    setPreviewQrDataUrl(null);
+    buildLabelQrDataUrl(payload.qrCode, 360)
+      .then((dataUrl) => {
+        if (active) {
+          setPreviewQrDataUrl(dataUrl);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setPreviewQrDataUrl(null);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [payload?.qrCode]);
 
   const handlePrint = useCallback(async () => {
     if (!payload?.qrCode.trim()) {
@@ -246,7 +372,7 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
                 ) : null}
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">标签预览数据</div>
+                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">标签预览</div>
                   {loading ? (
                     <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-on-surface-variant">
                       <LoaderCircle size={18} className="animate-spin" />
@@ -267,15 +393,7 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
                       ) : null}
                     </div>
                   ) : payload ? (
-                    <div className="grid gap-3 text-sm text-on-surface-variant md:grid-cols-2">
-                      <div className="font-bold text-on-surface">{payload.productName}</div>
-                      <div>条码 {payload.barcode || payload.batchCode}</div>
-                      <div>批次 {payload.batchCode}</div>
-                      <div>数量 {payload.quantity}</div>
-                      <div>库位 {payload.location}</div>
-                      <div>到期 {payload.expireDate}</div>
-                      <div className="font-semibold text-emerald-700">二维码凭证已加载</div>
-                    </div>
+                    <LabelPreview payload={payload} qrDataUrl={previewQrDataUrl} printTime={previewPrintTime} options={effectiveOptions} />
                   ) : (
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-on-surface-variant">
                       尚未加载标签数据。

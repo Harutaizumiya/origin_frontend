@@ -69,6 +69,44 @@ function escapeZpl(value: string) {
   return value.replace(/\^/g, " ").replace(/~/g, " ");
 }
 
+export function formatPrintTimestamp(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+export async function buildLabelQrDataUrl(qrCode: string, width = 360) {
+  return QRCode.toDataURL(text(qrCode), {
+    errorCorrectionLevel: "M",
+    margin: 1,
+    width,
+  });
+}
+
+export function getLabelValueFontSize(value: string, basePt = 7.6, minPt = 5.2) {
+  const length = Array.from(text(value)).reduce((sum, char) => sum + (/[\u4e00-\u9fff]/.test(char) ? 1.7 : 1), 0);
+
+  if (length <= 12) {
+    return basePt;
+  }
+
+  return Math.max(minPt, Number((basePt - (length - 12) * 0.28).toFixed(2)));
+}
+
+export function getLabelTitleFontSize(value: string, basePt = 14, minPt = 7.2) {
+  const length = Array.from(text(value)).reduce((sum, char) => sum + (/[\u4e00-\u9fff]/.test(char) ? 1.8 : 1), 0);
+
+  if (length <= 8) {
+    return basePt;
+  }
+
+  return Math.max(minPt, Number((basePt - (length - 8) * 0.55).toFixed(2)));
+}
+
 function mmToDots(value: number) {
   return Math.round(value * MM_TO_DOTS_203_DPI);
 }
@@ -99,6 +137,37 @@ function concatBytes(chunks: Array<Uint8Array | number[]>) {
 function buildTsplCommand(payload: LabelPrintPayload, options: LabelPrinterOptions) {
   const copies = clamp(Math.floor(options.copies), 1, 99);
   const density = clamp(Math.floor(options.density), 1, 15);
+  const printTime = formatPrintTimestamp();
+  const landscape = options.labelWidthMm >= options.labelHeightMm;
+  const layoutRows = landscape
+    ? [
+        "BOX 12,12,468,308,3",
+        `TEXT 28,30,"TSS24.BF2",0,1,1,"${escapeTspl(text(payload.productName))}"`,
+        "BAR 24,70,432,3",
+        `QRCODE 34,92,L,5,A,0,"${escapeTspl(text(payload.qrCode))}"`,
+        "BAR 196,88,3,190",
+        `TEXT 220,90,"TSS24.BF2",0,1,1,"存储位置: ${escapeTspl(text(payload.location))}"`,
+        "BAR 210,128,236,3",
+        `TEXT 220,144,"TSS24.BF2",0,1,1,"生产日期: ${escapeTspl(text(payload.manufactureDate))}"`,
+        "BAR 210,182,236,3",
+        `TEXT 220,198,"TSS24.BF2",0,1,1,"到期日期: ${escapeTspl(text(payload.expireDate))}"`,
+        "BAR 210,236,236,3",
+        `TEXT 220,252,"TSS24.BF2",0,1,1,"打印: ${escapeTspl(printTime)}"`,
+      ]
+    : [
+        "BOX 12,12,308,468,3",
+        `TEXT 28,34,"TSS24.BF2",0,1,1,"${escapeTspl(text(payload.productName))}"`,
+        "BAR 24,76,272,3",
+        `QRCODE 72,98,L,5,A,0,"${escapeTspl(text(payload.qrCode))}"`,
+        "BAR 24,260,272,3",
+        `TEXT 28,278,"TSS24.BF2",0,1,1,"存储位置: ${escapeTspl(text(payload.location))}"`,
+        "BAR 24,320,272,3",
+        `TEXT 28,338,"TSS24.BF2",0,1,1,"生产日期: ${escapeTspl(text(payload.manufactureDate))}"`,
+        "BAR 24,380,272,3",
+        `TEXT 28,398,"TSS24.BF2",0,1,1,"到期日期: ${escapeTspl(text(payload.expireDate))}"`,
+        "BAR 24,440,272,3",
+        `TEXT 28,456,"TSS24.BF2",0,1,1,"打印: ${escapeTspl(printTime)}"`,
+      ];
   const rows = [
     `SIZE ${options.labelWidthMm} mm,${options.labelHeightMm} mm`,
     `GAP ${options.gapMm} mm,0 mm`,
@@ -106,13 +175,7 @@ function buildTsplCommand(payload: LabelPrintPayload, options: LabelPrinterOptio
     "DIRECTION 1",
     "REFERENCE 0,0",
     "CLS",
-    `TEXT 24,18,"TSS24.BF2",0,1,1,"${escapeTspl(text(payload.productName))}"`,
-    `TEXT 24,50,"TSS24.BF2",0,1,1,"批次 ${escapeTspl(text(payload.batchCode))}"`,
-    `QRCODE 352,76,L,4,A,0,"${escapeTspl(text(payload.qrCode))}"`,
-    `BARCODE 24,84,"128",54,1,0,2,2,"${escapeTspl(text(payload.barcode, payload.batchCode))}"`,
-    `TEXT 24,156,"TSS24.BF2",0,1,1,"数量 ${escapeTspl(text(payload.quantity))}  库位 ${escapeTspl(text(payload.location))}"`,
-    `TEXT 24,186,"TSS24.BF2",0,1,1,"到期 ${escapeTspl(text(payload.expireDate))}  ${escapeTspl(text(payload.statusLabel))}"`,
-    `TEXT 24,216,"TSS24.BF2",0,1,1,"二维码凭证已加载"`,
+    ...layoutRows,
     `PRINT ${copies},1`,
   ];
 
@@ -123,21 +186,44 @@ function buildZplCommand(payload: LabelPrintPayload, options: LabelPrinterOption
   const copies = clamp(Math.floor(options.copies), 1, 99);
   const width = mmToDots(options.labelWidthMm);
   const height = mmToDots(options.labelHeightMm);
-  const barcodeValue = escapeZpl(text(payload.barcode, payload.batchCode));
   const qrValue = escapeZpl(text(payload.qrCode));
+  const printTime = formatPrintTimestamp();
+  const landscape = options.labelWidthMm >= options.labelHeightMm;
+  const layoutRows = landscape
+    ? [
+        "^FO12,12^GB468,308,3^FS",
+        `^FO28,30^A0N,30,30^FD${escapeZpl(text(payload.productName))}^FS`,
+        "^FO24,70^GB432,3,3^FS",
+        `^FO34,92^BQN,2,5^FDLA,${qrValue}^FS`,
+        "^FO196,88^GB3,190,3^FS",
+        `^FO220,90^A0N,24,24^FD存储位置: ${escapeZpl(text(payload.location))}^FS`,
+        "^FO210,128^GB236,3,3^FS",
+        `^FO220,144^A0N,24,24^FD生产日期: ${escapeZpl(text(payload.manufactureDate))}^FS`,
+        "^FO210,182^GB236,3,3^FS",
+        `^FO220,198^A0N,24,24^FD到期日期: ${escapeZpl(text(payload.expireDate))}^FS`,
+        "^FO210,236^GB236,3,3^FS",
+        `^FO220,252^A0N,20,20^FD打印: ${escapeZpl(printTime)}^FS`,
+      ]
+    : [
+        "^FO12,12^GB296,456,3^FS",
+        `^FO28,32^A0N,30,30^FD${escapeZpl(text(payload.productName))}^FS`,
+        "^FO24,76^GB272,3,3^FS",
+        `^FO72,98^BQN,2,5^FDLA,${qrValue}^FS`,
+        "^FO24,260^GB272,3,3^FS",
+        `^FO28,278^A0N,24,24^FD存储位置: ${escapeZpl(text(payload.location))}^FS`,
+        "^FO24,320^GB272,3,3^FS",
+        `^FO28,338^A0N,24,24^FD生产日期: ${escapeZpl(text(payload.manufactureDate))}^FS`,
+        "^FO24,380^GB272,3,3^FS",
+        `^FO28,398^A0N,24,24^FD到期日期: ${escapeZpl(text(payload.expireDate))}^FS`,
+        "^FO24,440^GB272,3,3^FS",
+        `^FO28,456^A0N,20,20^FD打印: ${escapeZpl(printTime)}^FS`,
+      ];
   const rows = [
     "^XA",
     "^CI28",
     `^PW${width}`,
     `^LL${height}`,
-    `^FO24,18^A0N,28,28^FD${escapeZpl(text(payload.productName))}^FS`,
-    `^FO24,52^A0N,22,22^FD批次 ${escapeZpl(text(payload.batchCode))}^FS`,
-    `^FO352,76^BQN,2,4^FDLA,${qrValue}^FS`,
-    "^BY2,2,58",
-    `^FO24,82^BCN,58,Y,N,N^FD${barcodeValue}^FS`,
-    `^FO24,168^A0N,22,22^FD数量 ${escapeZpl(text(payload.quantity))}  库位 ${escapeZpl(text(payload.location))}^FS`,
-    `^FO24,198^A0N,22,22^FD到期 ${escapeZpl(text(payload.expireDate))}  ${escapeZpl(text(payload.statusLabel))}^FS`,
-    `^FO24,228^A0N,22,22^FD二维码凭证已加载^FS`,
+    ...layoutRows,
     `^PQ${copies}`,
     "^XZ",
   ];
@@ -156,25 +242,22 @@ function buildEscPosQrStoreCommand(value: string) {
 
 function buildEscPosCommand(payload: LabelPrintPayload, options: LabelPrinterOptions) {
   const copies = clamp(Math.floor(options.copies), 1, 99);
-  const barcode = text(payload.barcode, payload.batchCode);
-  const barcodeBytes = encode(barcode);
+  const printTime = formatPrintTimestamp();
   const body = concatBytes([
     [0x1b, 0x40, 0x1b, 0x61, 0x00, 0x1b, 0x21, 0x20],
     encode(`${text(payload.productName)}\n`),
     [0x1b, 0x21, 0x00],
-    encode(`批次 ${text(payload.batchCode)}\n`),
-    encode(`数量 ${text(payload.quantity)}  库位 ${text(payload.location)}\n`),
-    encode(`到期 ${text(payload.expireDate)}  ${text(payload.statusLabel)}\n`),
-    encode("二维码凭证已加载\n\n"),
+    encode("--------------------------------\n"),
+    encode(`存储位置 : ${text(payload.location)}\n`),
+    encode(`生产日期 : ${text(payload.manufactureDate)}\n`),
+    encode(`到期日期 : ${text(payload.expireDate)}\n`),
+    encode(`打印时间 : ${printTime}\n\n`),
     [0x1b, 0x61, 0x01],
     [0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00],
     [0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x06],
     [0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31],
     buildEscPosQrStoreCommand(text(payload.qrCode)),
     [0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30],
-    encode("\n"),
-    [0x1d, 0x68, 0x50, 0x1d, 0x77, 0x02, 0x1d, 0x6b, 0x49, barcodeBytes.length],
-    barcodeBytes,
     [0x0a, 0x0a, 0x1d, 0x56, 0x00],
   ]);
 
@@ -198,17 +281,40 @@ export function buildLabelPrintCommand(payload: LabelPrintPayload, options: Labe
 export async function buildBrowserLabelHtml(payload: LabelPrintPayload, options: LabelPrinterOptions) {
   assertQrCode(payload);
 
-  const qrCodeDataUrl = await QRCode.toDataURL(text(payload.qrCode), {
-    errorCorrectionLevel: "M",
-    margin: 1,
-    width: 160,
-  });
+  const qrCodeDataUrl = await buildLabelQrDataUrl(payload.qrCode, 360);
+  const printTime = formatPrintTimestamp();
   const safe = (value: string) =>
     text(value)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  const infoRows = [
+    { label: "存储位置", value: text(payload.location), fontSize: getLabelValueFontSize(text(payload.location)) },
+    { label: "生产日期", value: text(payload.manufactureDate), fontSize: getLabelValueFontSize(text(payload.manufactureDate)) },
+    { label: "到期日期", value: text(payload.expireDate), fontSize: getLabelValueFontSize(text(payload.expireDate)) },
+    { label: "打印时间", value: printTime, fontSize: getLabelValueFontSize(printTime, 7.1, 4.9) },
+  ];
+  const titleFontSize = getLabelTitleFontSize(payload.productName);
+  const landscape = options.labelWidthMm >= options.labelHeightMm;
+  const labelPadding = landscape ? "2.4mm" : "3mm";
+  const framePadding = landscape ? "2.1mm 2.4mm" : "2.4mm";
+  const frameRows = landscape ? "8mm 0.6mm minmax(0, 1fr)" : "auto 0.7mm 22mm minmax(0, 1fr)";
+  const frameGap = landscape ? "1.6mm" : "1.7mm";
+  const titleLineHeight = landscape ? "0.6mm" : "0.7mm";
+  const titleSize = landscape ? Math.min(titleFontSize, 13.5) : titleFontSize;
+  const contentCss = landscape
+    ? ".content { display: grid; grid-template-columns: 20mm 0.6mm minmax(0, 1fr); column-gap: 1.8mm; min-height: 0; }"
+    : ".content { display: contents; }";
+  const qrCss = landscape
+    ? ".qr { width: 19mm; height: 19mm; object-fit: contain; align-self: center; justify-self: center; image-rendering: pixelated; }"
+    : ".qr { width: 21mm; height: 21mm; object-fit: contain; align-self: center; justify-self: center; image-rendering: pixelated; }";
+  const dividerCss = landscape ? ".divider { width: 0.6mm; background: #000; min-height: 20mm; }" : ".divider { display: none; }";
+  const rowCss = landscape
+    ? ".row { display: grid; grid-template-columns: 12mm 2mm minmax(0, 1fr); align-items: center; gap: 0.45mm; border-bottom: 0.42mm solid #000; min-height: 4.4mm; padding: 0.25mm 0; }"
+    : ".row { display: grid; grid-template-columns: 12mm 2mm minmax(0, 1fr); align-items: center; gap: 0.5mm; border-bottom: 0.45mm solid #000; min-height: 4.8mm; padding: 0.45mm 0; }";
+  const labelTextSize = landscape ? "7.1pt" : "7.8pt";
+  const colonSize = landscape ? "7.3pt" : "8pt";
 
   return `<!doctype html>
 <html>
@@ -218,49 +324,62 @@ export async function buildBrowserLabelHtml(payload: LabelPrintPayload, options:
   <style>
     @page { size: ${options.labelWidthMm}mm ${options.labelHeightMm}mm; margin: 0; }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #111; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #000; }
     .label {
       width: ${options.labelWidthMm}mm;
       height: ${options.labelHeightMm}mm;
-      padding: 3mm;
+      padding: ${labelPadding};
       display: flex;
       flex-direction: column;
-      gap: 1.5mm;
       page-break-after: always;
     }
-    h1 { margin: 0; font-size: 13pt; line-height: 1.2; }
-    .body { display: grid; grid-template-columns: minmax(0, 1fr) 19mm; gap: 2mm; align-items: start; }
-    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 2mm; font-size: 7.5pt; }
-    .barcode { margin-top: 1mm; border: 1px solid #111; padding: 1.5mm; text-align: center; font: 700 11pt monospace; letter-spacing: 1px; }
-    .batch { font-size: 8.5pt; font-weight: 700; }
-    .qr { width: 19mm; height: 19mm; object-fit: contain; }
-    .qr-caption { font-size: 6.5pt; text-align: center; font-weight: 700; }
+    .frame {
+      width: 100%;
+      height: 100%;
+      border: 0.65mm solid #000;
+      border-radius: 2.5mm;
+      padding: ${framePadding};
+      display: grid;
+      grid-template-rows: ${frameRows};
+      row-gap: ${frameGap};
+      overflow: hidden;
+    }
+    h1 { margin: 0; font-size: ${titleSize}pt; line-height: 1; font-weight: 900; letter-spacing: 0; white-space: nowrap; overflow: hidden; }
+    .title-line { height: ${titleLineHeight}; background: #000; }
+    ${contentCss}
+    ${qrCss}
+    ${dividerCss}
+    .info { display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); min-width: 0; min-height: 0; }
+    ${rowCss}
+    .row:last-child { border-bottom: 0; }
+    .label-text { font-size: ${labelTextSize}; font-weight: 900; white-space: nowrap; }
+    .colon { font-size: ${colonSize}; font-weight: 900; text-align: center; }
+    .value { line-height: 1; font-weight: 900; min-width: 0; white-space: nowrap; overflow: hidden; letter-spacing: 0; }
   </style>
 </head>
 <body>
   ${Array.from({ length: clamp(Math.floor(options.copies), 1, 99) })
     .map(
       () => `<section class="label">
-        <h1>${safe(payload.productName)}</h1>
-        <div class="batch">批次 ${safe(payload.batchCode)}</div>
-        <div class="body">
-          <div>
-            <div class="barcode">${safe(text(payload.barcode, payload.batchCode))}</div>
-            <div class="meta">
-              <span>数量 ${safe(payload.quantity)}</span>
-              <span>库位 ${safe(payload.location)}</span>
-              <span>生产 ${safe(payload.manufactureDate)}</span>
-              <span>到期 ${safe(payload.expireDate)}</span>
-              <span>分类 ${safe(payload.category)}</span>
-              <span>${safe(payload.statusLabel)}</span>
+        <div class="frame">
+          <h1>${safe(payload.productName)}</h1>
+          <div class="title-line"></div>
+          <div class="content">
+            <img class="qr" src="${qrCodeDataUrl}" alt="二维码凭证" />
+            <div class="divider"></div>
+            <div class="info">
+              ${infoRows
+                .map(
+                  (row) => `<div class="row">
+                    <div class="label-text">${safe(row.label)}</div>
+                    <div class="colon">:</div>
+                    <div class="value" style="font-size:${row.fontSize}pt">${safe(row.value)}</div>
+                  </div>`,
+                )
+                .join("")}
             </div>
           </div>
-          <div>
-            <img class="qr" src="${qrCodeDataUrl}" alt="二维码凭证" />
-            <div class="qr-caption">凭证已加载</div>
-          </div>
         </div>
-        <div class="meta"><span>厂商 ${safe(payload.manufacturer)}</span><span>收货 ${safe(payload.receivedDate)}</span></div>
       </section>`,
     )
     .join("")}
