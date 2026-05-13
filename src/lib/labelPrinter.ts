@@ -1,4 +1,4 @@
-import QRCode from "qrcode";
+import QRCodeModule from "qrcode";
 
 export type LabelPrinterProtocol = "tspl" | "zpl" | "escpos" | "browser";
 export type LabelPrinterTransport = "webusb" | "webserial" | "browser";
@@ -36,6 +36,10 @@ export interface LabelPrintResult {
 }
 
 const MM_TO_DOTS_203_DPI = 8;
+
+interface QrCodeGenerator {
+  toDataURL(text: string, options?: { errorCorrectionLevel?: string; margin?: number; width?: number }): Promise<string>;
+}
 
 interface UsbNavigator {
   requestDevice(options: { filters: USBDeviceFilter[] }): Promise<USBDevice>;
@@ -80,7 +84,14 @@ export function formatPrintTimestamp(date = new Date()) {
 }
 
 export async function buildLabelQrDataUrl(qrCode: string, width = 360) {
-  return QRCode.toDataURL(text(qrCode), {
+  const candidate = QRCodeModule as unknown as QrCodeGenerator & { default?: QrCodeGenerator };
+  const generator = typeof candidate.toDataURL === "function" ? candidate : candidate.default;
+
+  if (!generator?.toDataURL) {
+    throw new Error("二维码生成模块不可用。");
+  }
+
+  return generator.toDataURL(text(qrCode), {
     errorCorrectionLevel: "M",
     margin: 1,
     width,

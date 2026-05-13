@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LABEL_PRINTER_OPTIONS,
   buildBrowserLabelHtml,
+  buildLabelQrDataUrl,
   buildLabelPrintCommand,
   type LabelPrintPayload,
 } from "./labelPrinter";
@@ -29,6 +30,12 @@ describe("label printer QR commands", () => {
   it("uses a landscape 60mm by 40mm label by default", () => {
     expect(DEFAULT_LABEL_PRINTER_OPTIONS.labelWidthMm).toBe(60);
     expect(DEFAULT_LABEL_PRINTER_OPTIONS.labelHeightMm).toBe(40);
+  });
+
+  it("generates the preview QR image from the signed qrCode", async () => {
+    const dataUrl = await buildLabelQrDataUrl(payload.qrCode, 180);
+
+    expect(dataUrl).toMatch(/^data:image\/png;base64,/);
   });
 
   it("includes qrCode in TSPL output", () => {

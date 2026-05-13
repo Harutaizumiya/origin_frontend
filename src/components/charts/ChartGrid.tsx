@@ -49,8 +49,8 @@ export const ChartGrid: React.FC<ChartGridProps> = ({ trendData, categories }) =
       <div className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8 lg:col-span-2">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h4 className="font-headline text-lg font-bold text-on-surface">库存到期趋势（未来30天）</h4>
-            <p className="mt-1 text-xs text-on-surface-variant">基于当前批次效期预测未来的流转压力。</p>
+            <h4 className="font-headline text-lg font-bold text-on-surface">批次到期趋势（未来30天）</h4>
+            <p className="mt-1 text-xs text-on-surface-variant">基于当前批次效期预测未来的处理压力。</p>
           </div>
           <div className="flex gap-2">
             <button className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white">按天</button>
@@ -64,7 +64,7 @@ export const ChartGrid: React.FC<ChartGridProps> = ({ trendData, categories }) =
       </div>
 
       <div className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8">
-        <h4 className="mb-8 font-headline text-lg font-bold text-on-surface">品类库存分布</h4>
+        <h4 className="mb-8 font-headline text-lg font-bold text-on-surface">品类在库分布</h4>
         {isSidebarAnimating ? <ChartSkeleton compact /> : <DistributionChart categories={categories} />}
       </div>
     </div>

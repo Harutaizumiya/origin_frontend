@@ -45,9 +45,11 @@ const TRANSPORT_OPTIONS: Array<{ value: LabelPrinterTransport; label: string; ic
 const LabelPreview: React.FC<{
   payload: LabelPrintPayload;
   qrDataUrl: string | null;
+  qrLoading: boolean;
+  qrError: string | null;
   printTime: string;
   options: LabelPrinterOptions;
-}> = ({ payload, qrDataUrl, printTime, options }) => {
+}> = ({ payload, qrDataUrl, qrLoading, qrError, printTime, options }) => {
   const rows = [
     { label: "存储位置", value: payload.location, fontSize: getLabelValueFontSize(payload.location) },
     { label: "生产日期", value: payload.manufactureDate, fontSize: getLabelValueFontSize(payload.manufactureDate) },
@@ -95,6 +97,24 @@ const LabelPreview: React.FC<{
                   alt="二维码凭证预览"
                   className={cn("object-contain [image-rendering:pixelated]", landscape ? "h-[150px] w-[150px]" : "h-[168px] w-[168px]")}
                 />
+              ) : qrLoading ? (
+                <div
+                  className={cn(
+                    "flex items-center justify-center border-4 border-black px-2 text-center text-xs font-black",
+                    landscape ? "h-[150px] w-[150px]" : "h-[168px] w-[168px]",
+                  )}
+                >
+                  生成中
+                </div>
+              ) : qrError ? (
+                <div
+                  className={cn(
+                    "flex items-center justify-center border-4 border-black px-2 text-center text-xs font-black",
+                    landscape ? "h-[150px] w-[150px]" : "h-[168px] w-[168px]",
+                  )}
+                >
+                  二维码生成失败
+                </div>
               ) : (
                 <div
                   className={cn(
@@ -140,6 +160,8 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
   const [printing, setPrinting] = useState(false);
   const [feedback, setFeedback] = useState<PrintFeedback | null>(null);
   const [previewQrDataUrl, setPreviewQrDataUrl] = useState<string | null>(null);
+  const [previewQrLoading, setPreviewQrLoading] = useState(false);
+  const [previewQrError, setPreviewQrError] = useState<string | null>(null);
   const [previewPrintTime, setPreviewPrintTime] = useState(() => formatPrintTimestamp());
   const canPrint = Boolean(payload?.qrCode.trim()) && !loading && !error;
 
@@ -165,20 +187,31 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
 
     if (!payload?.qrCode.trim()) {
       setPreviewQrDataUrl(null);
+      setPreviewQrLoading(false);
+      setPreviewQrError(null);
       return;
     }
 
     setPreviewPrintTime(formatPrintTimestamp());
     setPreviewQrDataUrl(null);
+    setPreviewQrLoading(true);
+    setPreviewQrError(null);
     buildLabelQrDataUrl(payload.qrCode, 360)
       .then((dataUrl) => {
         if (active) {
           setPreviewQrDataUrl(dataUrl);
+          setPreviewQrError(null);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (active) {
           setPreviewQrDataUrl(null);
+          setPreviewQrError(error instanceof Error ? error.message : "二维码生成失败。");
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setPreviewQrLoading(false);
         }
       });
 
@@ -393,7 +426,14 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
                       ) : null}
                     </div>
                   ) : payload ? (
-                    <LabelPreview payload={payload} qrDataUrl={previewQrDataUrl} printTime={previewPrintTime} options={effectiveOptions} />
+                    <LabelPreview
+                      payload={payload}
+                      qrDataUrl={previewQrDataUrl}
+                      qrLoading={previewQrLoading}
+                      qrError={previewQrError}
+                      printTime={previewPrintTime}
+                      options={effectiveOptions}
+                    />
                   ) : (
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-on-surface-variant">
                       尚未加载标签数据。

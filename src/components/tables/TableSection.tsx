@@ -14,10 +14,10 @@ export const TableSection = memo(function TableSection({ items, lastUpdatedAt }:
     <div className="p-8 border-b border-surface-container-high flex justify-between items-center">
       <div>
         <h4 className="text-lg font-bold text-on-surface font-headline">
-          效期预警（Top 5 紧急）
+          临期批次预警（Top 5）
         </h4>
         <p className="text-xs text-on-surface-variant mt-1">
-          需优先处理的即将过期库存
+          按剩余效期排序的高优先级批次
         </p>
       </div>
       <div className="flex items-center gap-3">
