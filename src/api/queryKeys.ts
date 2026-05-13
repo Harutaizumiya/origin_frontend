@@ -6,6 +6,10 @@ export const queryKeys = {
     all: ["dashboard"] as const,
     overview: () => [...queryKeys.dashboard.all, "overview"] as const,
   },
+  analytics: {
+    all: ["analytics"] as const,
+    summary: (range = "6m") => [...queryKeys.analytics.all, "summary", range] as const,
+  },
   products: {
     all: ["products"] as const,
     lists: () => [...queryKeys.products.all, "list"] as const,

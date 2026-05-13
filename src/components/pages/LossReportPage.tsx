@@ -824,6 +824,8 @@ export const LossReportPage: React.FC = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.batches.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.operations.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all }),
       ]);
       setFeedback({
         type: "success",
@@ -880,6 +882,8 @@ export const LossReportPage: React.FC = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.batches.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.operations.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all }),
       ]);
       setFeedback({
         type: "success",

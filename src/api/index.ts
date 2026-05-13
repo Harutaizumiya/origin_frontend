@@ -1,3 +1,4 @@
+export * from "./analytics";
 export * from "./client";
 export * from "./batches";
 export * from "./dashboard";

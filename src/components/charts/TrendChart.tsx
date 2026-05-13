@@ -20,8 +20,8 @@ interface TrendChartProps {
 
 export const TrendChart = memo(function TrendChart({ data }: TrendChartProps) {
   return (
-  <div className="h-64 w-full">
-    <ResponsiveContainer width="100%" height="100%">
+  <div className="h-64 min-w-0 w-full">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
       <BarChart
         data={data}
         margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
@@ -41,6 +41,7 @@ export const TrendChart = memo(function TrendChart({ data }: TrendChartProps) {
         />
         {/* Y轴 - 数值 */}
         <YAxis
+          allowDecimals={false}
           axisLine={false}
           tickLine={false}
           tick={{ fontSize: 10, fill: "#414755" }}

@@ -4,6 +4,24 @@ import { useSidebarAnimating } from "../layout/LayoutContext";
 import { DistributionChart } from "./DistributionChart";
 import { TrendChart } from "./TrendChart";
 
+function useChartReady() {
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => setReady(true));
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, []);
+
+  return ready;
+}
+
 function ChartSkeleton({ compact = false }: { compact?: boolean }) {
   return (
     <div className={compact ? "space-y-5" : "h-64 w-full"}>
@@ -43,10 +61,12 @@ interface ChartGridProps {
 
 export const ChartGrid: React.FC<ChartGridProps> = ({ trendData, categories }) => {
   const isSidebarAnimating = useSidebarAnimating();
+  const chartReady = useChartReady();
+  const showSkeleton = isSidebarAnimating || !chartReady;
 
   return (
     <div className="mb-8 grid grid-cols-1 gap-8 lg:grid-cols-3">
-      <div className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8 lg:col-span-2">
+      <div className="ambient-shadow min-w-0 rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8 lg:col-span-2">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h4 className="font-headline text-lg font-bold text-on-surface">批次到期趋势（未来30天）</h4>
@@ -60,12 +80,12 @@ export const ChartGrid: React.FC<ChartGridProps> = ({ trendData, categories }) =
           </div>
         </div>
 
-        {isSidebarAnimating ? <ChartSkeleton /> : <TrendChart data={trendData} />}
+        {showSkeleton ? <ChartSkeleton /> : <TrendChart data={trendData} />}
       </div>
 
-      <div className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8">
+      <div className="ambient-shadow min-w-0 rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8">
         <h4 className="mb-8 font-headline text-lg font-bold text-on-surface">品类在库分布</h4>
-        {isSidebarAnimating ? <ChartSkeleton compact /> : <DistributionChart categories={categories} />}
+        {showSkeleton ? <ChartSkeleton compact /> : <DistributionChart categories={categories} />}
       </div>
     </div>
   );

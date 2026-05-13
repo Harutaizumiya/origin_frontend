@@ -1,33 +1,57 @@
 import React from "react";
-import { Activity, Download, MoreHorizontal, RefreshCw, Timer, TrendingDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Activity, Download, LoaderCircle, MoreHorizontal, RefreshCw, Timer, TrendingDown } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  ApiClientError,
+  getAnalyticsSnapshot,
+  getAnalyticsSummary,
+  queryKeys,
+  type AnalyticsData,
+  type AnalyticsRange,
+} from "../../api";
 import { cn } from "../../lib/utils";
 import { useSidebarAnimating } from "../layout/LayoutContext";
 import { StatCard } from "../dashboard/StatCard";
 
-const STOCK_LOSS_TREND = [
-  { month: "1月", stockQuantity: 4500, lossQuantity: 210 },
-  { month: "2月", stockQuantity: 5200, lossQuantity: 180 },
-  { month: "3月", stockQuantity: 4800, lossQuantity: 250 },
-  { month: "4月", stockQuantity: 6100, lossQuantity: 190 },
-  { month: "5月", stockQuantity: 5900, lossQuantity: 150 },
-  { month: "6月", stockQuantity: 7200, lossQuantity: 120 },
-];
+const DEFAULT_RANGE: AnalyticsRange = "6m";
 
-const THROUGHPUT_DATA = [
-  { category: "肉类", inbound: 450, outbound: 380 },
-  { category: "乳制品", inbound: 620, outbound: 590 },
-  { category: "烘焙", inbound: 310, outbound: 290 },
-  { category: "蔬菜", inbound: 840, outbound: 810 },
-  { category: "其他", inbound: 200, outbound: 180 },
-];
+function useChartReady() {
+  const [ready, setReady] = React.useState(false);
 
-const RISK_RANKING_DATA = [
-  { name: "澳洲安格斯牛肉 300g", riskType: "临期批次", days: "1.0", score: 96, color: "text-red-600" },
-  { name: "巴氏杀菌全脂牛奶 1L", riskType: "报损频繁", days: "3.0", score: 88, color: "text-orange-600" },
-  { name: "法式牛角包 6件装", riskType: "临期批次", days: "4.0", score: 82, color: "text-amber-600" },
-  { name: "有机小菠菜 200g", riskType: "库存偏高", days: "8.0", score: 73, color: "text-primary" },
-];
+  React.useEffect(() => {
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => setReady(true));
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, []);
+
+  return ready;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof ApiClientError) {
+    switch (error.message) {
+      case "validation_error":
+        return "分析范围参数不符合后端校验规则。";
+      case "conflict":
+        return "后端暂时无法生成分析聚合数据。";
+      default:
+        return `分析数据请求失败：${error.message}`;
+    }
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "分析数据请求失败，请稍后重试。";
+}
 
 function ChartSkeleton({ vertical = false }: { vertical?: boolean }) {
   return (
@@ -58,12 +82,20 @@ function ChartSkeleton({ vertical = false }: { vertical?: boolean }) {
   );
 }
 
-function AnalyticsMetrics() {
+function ChartEmpty() {
+  return (
+    <div className="flex h-80 w-full items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-slate-50/60 text-sm font-semibold text-slate-500">
+      暂无可展示的聚合数据
+    </div>
+  );
+}
+
+function AnalyticsMetrics({ data }: { data: AnalyticsData }) {
   return (
     <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
       <StatCard
         title="库存变动次数"
-        value="248"
+        value={data.inventoryChangeCount}
         trend="入库 / 出库 / 报损"
         trendType="up"
         icon={<RefreshCw size={24} />}
@@ -72,8 +104,8 @@ function AnalyticsMetrics() {
       />
       <StatCard
         title="本月报损数量"
-        value="120"
-        trend="较上月 -15%"
+        value={data.currentMonthLossQuantity}
+        trend="有效报损操作"
         trendType="up"
         icon={<TrendingDown size={24} />}
         iconBg="bg-emerald-500/10"
@@ -81,7 +113,7 @@ function AnalyticsMetrics() {
       />
       <StatCard
         title="平均库龄"
-        value="12.5 天"
+        value={data.averageStockAgeDays === "-" ? "-" : `${data.averageStockAgeDays} 天`}
         trend="按批次估算"
         trendType="neutral"
         icon={<Timer size={24} />}
@@ -92,12 +124,14 @@ function AnalyticsMetrics() {
   );
 }
 
-function AnalyticsCharts() {
+function AnalyticsCharts({ data, loading }: { data: AnalyticsData; loading: boolean }) {
   const isSidebarAnimating = useSidebarAnimating();
+  const chartReady = useChartReady();
+  const showSkeleton = loading || isSidebarAnimating || !chartReady;
 
   return (
     <div className="mb-8 grid grid-cols-1 gap-8 xl:grid-cols-2">
-      <section className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8">
+      <section className="ambient-shadow min-w-0 rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h3 className="font-headline text-xl font-bold text-on-surface">库存数量与报损趋势</h3>
@@ -105,12 +139,14 @@ function AnalyticsCharts() {
           </div>
           <div className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">月度趋势</div>
         </div>
-        {isSidebarAnimating ? (
+        {showSkeleton ? (
           <ChartSkeleton />
+        ) : data.stockLossTrend.length === 0 ? (
+          <ChartEmpty />
         ) : (
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={STOCK_LOSS_TREND} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+          <div className="h-80 min-w-0 w-full">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <BarChart data={data.stockLossTrend} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#475569" }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#475569" }} />
@@ -129,7 +165,7 @@ function AnalyticsCharts() {
         )}
       </section>
 
-      <section className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8">
+      <section className="ambient-shadow min-w-0 rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h3 className="font-headline text-xl font-bold text-on-surface">品类出入库操作量</h3>
@@ -137,12 +173,14 @@ function AnalyticsCharts() {
           </div>
           <div className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">操作分布</div>
         </div>
-        {isSidebarAnimating ? (
+        {showSkeleton ? (
           <ChartSkeleton vertical />
+        ) : data.categoryOperations.length === 0 ? (
+          <ChartEmpty />
         ) : (
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart layout="vertical" data={THROUGHPUT_DATA} margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
+          <div className="h-80 min-w-0 w-full">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <BarChart layout="vertical" data={data.categoryOperations} margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
                 <XAxis type="number" hide />
                 <YAxis
@@ -170,7 +208,7 @@ function AnalyticsCharts() {
   );
 }
 
-function RiskRankingTable() {
+function RiskRankingTable({ data }: { data: AnalyticsData }) {
   return (
     <section className="ambient-shadow overflow-hidden rounded-3xl border border-surface-container/10 bg-surface-container-lowest">
       <div className="flex items-center justify-between border-b border-surface-container-high p-8">
@@ -188,30 +226,37 @@ function RiskRankingTable() {
             <tr className="bg-surface-container-low/50">
               <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">产品</th>
               <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">风险类型</th>
-              <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-                剩余效期
-              </th>
-              <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-                风险评分
-              </th>
+              <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">剩余效期</th>
+              <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">风险评分</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container-low">
-            {RISK_RANKING_DATA.map((item) => (
-              <tr key={item.name} className="transition-colors hover:bg-surface-container-low/30">
-                <td className="px-8 py-5 text-sm font-bold text-on-surface">{item.name}</td>
-                <td className="px-8 py-5 text-sm text-on-surface-variant">{item.riskType}</td>
-                <td className="px-8 py-5 text-sm text-on-surface-variant">{item.days} 天</td>
-                <td className="px-8 py-5">
-                  <div className="flex items-center gap-3">
-                    <div className="h-2 w-20 overflow-hidden rounded-full bg-surface-container">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${item.score}%` }} />
-                    </div>
-                    <span className={cn("text-sm font-bold", item.color)}>{item.score}</span>
-                  </div>
+            {data.highRiskRanking.length === 0 ? (
+              <tr>
+                <td className="px-8 py-10 text-center text-sm font-semibold text-on-surface-variant" colSpan={4}>
+                  暂无高风险库存
                 </td>
               </tr>
-            ))}
+            ) : (
+              data.highRiskRanking.map((item) => (
+                <tr key={item.id} className="transition-colors hover:bg-surface-container-low/30">
+                  <td className="px-8 py-5">
+                    <div className="text-sm font-bold text-on-surface">{item.name}</div>
+                    <div className="mt-1 text-xs font-mono text-on-surface-variant">{item.batchCode}</div>
+                  </td>
+                  <td className="px-8 py-5 text-sm text-on-surface-variant">{item.riskType}</td>
+                  <td className="px-8 py-5 text-sm text-on-surface-variant">{item.daysLabel}</td>
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-3">
+                      <div className="h-2 w-20 overflow-hidden rounded-full bg-surface-container">
+                        <div className="h-full rounded-full bg-primary" style={{ width: `${item.score}%` }} />
+                      </div>
+                      <span className={cn("text-sm font-bold", item.color)}>{item.score}</span>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -220,6 +265,12 @@ function RiskRankingTable() {
 }
 
 export const AnalyticsPage: React.FC = () => {
+  const analyticsQuery = useQuery({
+    queryKey: queryKeys.analytics.summary(DEFAULT_RANGE),
+    queryFn: () => getAnalyticsSummary(DEFAULT_RANGE),
+  });
+  const analyticsData = analyticsQuery.data ?? getAnalyticsSnapshot();
+
   return (
     <>
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -240,8 +291,11 @@ export const AnalyticsPage: React.FC = () => {
 
       <div className="mb-8 flex flex-col gap-3 rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 shadow-[0_10px_30px_rgba(15,23,42,0.05)] md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3 text-sm text-slate-500">
-          <Activity size={16} className="text-primary" />
-          <span>默认展示过去 6 个月数据，重点突出库存变动、报损数量与高风险批次。</span>
+          {analyticsQuery.isLoading ? <LoaderCircle size={16} className="animate-spin text-primary" /> : <Activity size={16} className="text-primary" />}
+          <span>
+            数据来源：`/api/analytics/summary`
+            {analyticsData.period ? ` · ${analyticsData.period.start} 至 ${analyticsData.period.end}` : ""}
+          </span>
         </div>
         <button
           type="button"
@@ -251,9 +305,15 @@ export const AnalyticsPage: React.FC = () => {
         </button>
       </div>
 
-      <AnalyticsMetrics />
-      <AnalyticsCharts />
-      <RiskRankingTable />
+      {analyticsQuery.error ? (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-600">
+          {getErrorMessage(analyticsQuery.error)}
+        </div>
+      ) : null}
+
+      <AnalyticsMetrics data={analyticsData} />
+      <AnalyticsCharts data={analyticsData} loading={analyticsQuery.isLoading} />
+      <RiskRankingTable data={analyticsData} />
     </>
   );
 };

@@ -706,6 +706,8 @@ export const InventoryStatusPage: React.FC = () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.products.lists() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.batches.lists() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all }),
     ]);
   }, [queryClient]);
 
