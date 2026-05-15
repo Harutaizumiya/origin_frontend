@@ -12,6 +12,7 @@ const SIDEBAR_ANIMATION_MS = 500;
 const SIDEBAR_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 const SIDEBAR_EXPANDED_WIDTH = 256;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
+const HEADER_HEIGHT_PX = 64;
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -76,10 +77,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             transitionDuration: isContentTransitioning ? `${SIDEBAR_ANIMATION_MS}ms` : "0ms",
             transitionTimingFunction: SIDEBAR_EASING,
           }}
-          className={cn("box-border min-w-0 flex-1", shouldTransformContent && "transition-transform will-change-transform")}
-        >
-          <Header />
-          <main className="p-8 pb-24">{children}</main>
+        className={cn("box-border min-w-0 flex-1", shouldTransformContent && "transition-transform will-change-transform")}
+      >
+          <Header sidebarWidth={sidebarWidth} />
+          <main className="p-8 pb-24" style={{ paddingTop: HEADER_HEIGHT_PX + 32 }}>
+            {children}
+          </main>
         </div>
       </div>
     </LayoutProvider>

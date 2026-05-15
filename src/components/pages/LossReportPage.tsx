@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { Boxes, History, LoaderCircle, MapPin, Package, RotateCcw, TriangleAlert, X } from "lucide-react";
+import { History, LoaderCircle, MapPin, Package, RotateCcw, Search, TriangleAlert, X } from "lucide-react";
 import {
   ApiClientError,
   createBatchOperation,
@@ -60,6 +60,11 @@ const DEFAULT_FORM: LossFormState = {
 const DEFAULT_REVERT_FORM: RevertFormState = {
   remarks: "",
 };
+
+interface LossFilters {
+  query: string;
+  category: string;
+}
 
 async function loadAllPages<TItem, TParams extends { page?: number; size?: number }>(
   loader: (params: TParams) => Promise<ApiListData<TItem>>,
@@ -675,6 +680,11 @@ export const LossReportPage: React.FC = () => {
   const [isReverting, setIsReverting] = useState(false);
   const [feedback, setFeedback] = useState<LossFeedbackState | null>(null);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [filters, setFilters] = useState<LossFilters>({
+    query: "",
+    category: "",
+  });
+  const isDebugMode = import.meta.env.DEV;
 
   const productsQuery = useQuery({
     queryKey: [...queryKeys.products.lists(), "all-pages"],
@@ -762,6 +772,33 @@ export const LossReportPage: React.FC = () => {
         };
       });
   }, [batchesQuery.data, productsQuery.data]);
+
+  const categoryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          productCards
+            .map((card) => card.product.category?.trim())
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort((left, right) => left.localeCompare(right, "zh-CN")),
+    [productCards],
+  );
+
+  const filteredProductCards = useMemo(() => {
+    const query = filters.query.trim().toLowerCase();
+
+    return productCards.filter((card) => {
+      const matchesCategory = !filters.category || card.product.category === filters.category;
+      const matchesQuery =
+        !query ||
+        card.product.product_name.toLowerCase().includes(query) ||
+        card.product.barcode.toLowerCase().includes(query) ||
+        card.product.manufacturer.toLowerCase().includes(query);
+
+      return matchesCategory && matchesQuery;
+    });
+  }, [filters.category, filters.query, productCards]);
 
   const openLossModal = (card: ProductLossCardData) => {
     setSelectedCard(card);
@@ -918,6 +955,13 @@ export const LossReportPage: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [isFeedbackOpen]);
 
+  const resetFilters = () => {
+    setFilters({
+      query: "",
+      category: "",
+    });
+  };
+
   return (
     <>
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -943,20 +987,57 @@ export const LossReportPage: React.FC = () => {
 
       <section className="mb-8 rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 ambient-shadow">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h3 className="font-headline text-xl font-bold text-on-surface">货物卡片</h3>
-            <p className="mt-1 text-sm text-on-surface-variant">
-              {isLoading ? "正在同步货物与批次数据..." : `当前共 ${productCards.length} 个货物，其中 ${productCards.filter((card) => card.reportableBatchCount > 0).length} 个货物可直接发起报损。`}
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-surface-container bg-surface-container-low px-4 py-2 text-sm text-on-surface-variant">
-            {isLoading ? <LoaderCircle size={16} className="animate-spin" /> : <Boxes size={16} />}
-            数据来源：`/api/products` + `/api/batches`
+          <label className="relative flex-1">
+            <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+            <input
+              value={filters.query}
+              onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
+              placeholder="搜索货物名称、条码或厂商"
+              className="w-full rounded-2xl border border-surface-container bg-surface-container-low py-3 pl-11 pr-4 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+            />
+          </label>
+          <div className="flex flex-col gap-4 md:flex-row">
+            <select
+              value={filters.category}
+              onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))}
+              className="min-w-[200px] rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+            >
+              <option value="">全部分类</option>
+              {categoryOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-surface-container px-4 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
+            >
+              <RotateCcw size={16} />
+              重置筛选
+            </button>
           </div>
         </div>
       </section>
 
       <section className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 ambient-shadow">
+        <div className="mb-6 flex flex-col gap-3 border-b border-surface-container-high pb-6 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="font-headline text-xl font-bold text-on-surface">货物卡片</h3>
+            <p className="mt-1 text-sm text-on-surface-variant">
+              {isLoading
+                ? "正在同步货物与批次数据..."
+                : `当前共 ${filteredProductCards.length} 个货物，其中 ${filteredProductCards.filter((card) => card.reportableBatchCount > 0).length} 个货物可直接发起报损。`}
+            </p>
+          </div>
+          {isDebugMode ? (
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-surface-container bg-surface-container-low px-4 py-2 text-sm text-on-surface-variant">
+              数据来源：`/api/products` + `/api/batches`
+            </div>
+          ) : null}
+        </div>
+
         {isLoading ? (
           <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
             <LoaderCircle size={30} className="animate-spin text-on-surface-variant" />
@@ -965,9 +1046,9 @@ export const LossReportPage: React.FC = () => {
               <p className="mt-1 text-sm text-on-surface-variant">请确认 Django 服务已启动，且产品与批次接口可正常访问。</p>
             </div>
           </div>
-        ) : productCards.length > 0 ? (
+        ) : filteredProductCards.length > 0 ? (
           <div className="grid gap-6 md:grid-cols-2 2xl:grid-cols-3">
-            {productCards.map((card) => (
+            {filteredProductCards.map((card) => (
               <article
                 key={card.product.id}
                 className="flex h-full flex-col rounded-[2rem] border border-surface-container/70 bg-surface-container-lowest p-6 shadow-sm transition-transform duration-200 hover:-translate-y-1"
@@ -1038,9 +1119,16 @@ export const LossReportPage: React.FC = () => {
               <Package size={28} />
             </div>
             <div>
-              <h4 className="text-lg font-bold text-on-surface">暂无货物数据</h4>
-              <p className="mt-1 text-sm text-on-surface-variant">当前后端没有返回任何货物，暂时无法建立报损卡片。</p>
+              <h4 className="text-lg font-bold text-on-surface">未找到匹配货物</h4>
+              <p className="mt-1 text-sm text-on-surface-variant">可以尝试调整搜索关键词或重置筛选条件。</p>
             </div>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="rounded-2xl border border-surface-container px-4 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
+            >
+              重置筛选
+            </button>
           </div>
         )}
       </section>

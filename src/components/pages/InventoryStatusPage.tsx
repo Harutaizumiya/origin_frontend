@@ -192,7 +192,8 @@ function getErrorDebugDetail(error: unknown) {
 
 const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: { items: InventoryViewModel[] }) {
   const totalQuantity = items.reduce((sum, viewModel) => sum + viewModel.quantityValue, 0);
-  const riskBatchCount = items.filter((viewModel) => viewModel.metrics.health !== "healthy").length;
+  const warningBatchCount = items.filter((viewModel) => viewModel.metrics.health === "warning").length;
+  const criticalBatchCount = items.filter((viewModel) => viewModel.metrics.health === "critical").length;
   const healthyRate = Math.round(
     (items.filter((viewModel) => viewModel.metrics.health === "healthy").length / Math.max(items.length, 1)) * 100,
   );
@@ -210,7 +211,7 @@ const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: {
       />
       <StatCard
         title="临期批次"
-        value={String(riskBatchCount)}
+        value={String(warningBatchCount)}
         trend="需优先关注"
         trendType="neutral"
         icon={<Clock3 size={24} className="text-orange-500" />}
@@ -219,7 +220,7 @@ const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: {
       />
       <StatCard
         title="异常批次"
-        value={String(riskBatchCount)}
+        value={String(criticalBatchCount)}
         trend="需及时处理"
         trendType="critical"
         icon={<TriangleAlert size={24} />}
