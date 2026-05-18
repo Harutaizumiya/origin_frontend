@@ -3,23 +3,32 @@ import { requestJson } from "./client";
 export interface AuthenticatedUser {
   id: number;
   username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isStaff: boolean;
+  isSuperuser: boolean;
+  permissions: string[];
   displayName: string;
-  role: string;
-  avatarUrl: string | null;
+  roleLabel: string;
 }
 
-interface AuthenticatedUserDto {
+export interface AuthenticatedUserDto {
   id: number;
   username: string;
-  displayName?: string;
-  display_name?: string;
-  role?: string;
-  avatarUrl?: string | null;
-  avatar_url?: string | null;
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_staff: boolean;
+  is_superuser: boolean;
+  permissions: string[];
 }
 
 interface LoginResponseDto {
   token: string;
+  token_type?: string;
+  expires_in?: number;
+  expires_at?: string;
   user: AuthenticatedUserDto;
 }
 
@@ -33,13 +42,22 @@ export interface LoginResult {
   user: AuthenticatedUser;
 }
 
-function toAuthenticatedUser(dto: AuthenticatedUserDto): AuthenticatedUser {
+export function toAuthenticatedUser(dto: AuthenticatedUserDto): AuthenticatedUser {
+  const fullName = [dto.last_name, dto.first_name].filter(Boolean).join("");
+  const displayName = fullName || dto.username;
+  const roleLabel = dto.is_superuser ? "超级管理员" : dto.is_staff ? "Staff" : "普通用户";
+
   return {
     id: dto.id,
     username: dto.username,
-    displayName: dto.displayName ?? dto.display_name ?? dto.username,
-    role: dto.role ?? "user",
-    avatarUrl: dto.avatarUrl ?? dto.avatar_url ?? null,
+    email: dto.email,
+    firstName: dto.first_name,
+    lastName: dto.last_name,
+    isStaff: dto.is_staff,
+    isSuperuser: dto.is_superuser,
+    permissions: dto.permissions,
+    displayName,
+    roleLabel,
   };
 }
 
@@ -60,7 +78,7 @@ export async function login(credentials: LoginCredentials): Promise<LoginResult>
 }
 
 export async function logout(token?: string | null) {
-  return requestJson<null>("/auth/logout", {
+  return requestJson<{ revoked: boolean }>("/auth/logout", {
     auth: false,
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,

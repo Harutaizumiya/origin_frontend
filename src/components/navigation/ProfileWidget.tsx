@@ -1,5 +1,5 @@
 import React from "react";
-import { LogOut } from "lucide-react";
+import { LogOut, UserRound } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../providers/AuthProvider";
 
@@ -16,7 +16,7 @@ function getInitials(name: string) {
 export const ProfileWidget: React.FC<ProfileWidgetProps> = ({ collapsed }) => {
   const { logout, user } = useAuth();
   const displayName = user?.displayName || user?.username || "未登录";
-  const role = user?.role || "user";
+  const role = user?.roleLabel || "普通用户";
 
   return (
     <div
@@ -26,16 +26,7 @@ export const ProfileWidget: React.FC<ProfileWidgetProps> = ({ collapsed }) => {
       )}
     >
       <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-xs font-bold text-primary">
-        {user?.avatarUrl ? (
-          <img
-            alt={displayName}
-            className="h-full w-full object-cover"
-            src={user.avatarUrl}
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          getInitials(displayName)
-        )}
+        {user ? getInitials(displayName) : <UserRound size={15} />}
       </div>
       <div
         className={cn(

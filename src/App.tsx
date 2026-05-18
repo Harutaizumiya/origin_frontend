@@ -1,21 +1,11 @@
 import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
-import { ProtectedRoute, PublicOnlyRoute } from "./components/auth/ProtectedRoute";
+import { ProtectedRoute, PublicOnlyRoute, RouteAccessGuard } from "./components/auth/ProtectedRoute";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { MainLayout } from "./components/layout/MainLayout";
+import { appRoutes } from "./routes/appRoutes";
 
 const LoginPage = lazy(() => import("./components/pages/LoginPage").then((module) => ({ default: module.LoginPage })));
-const DashboardPage = lazy(() => import("./components/pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
-const ProductManagementPage = lazy(() =>
-  import("./components/pages/ProductManagementPage").then((module) => ({ default: module.ProductManagementPage })),
-);
-const InventoryStatusPage = lazy(() =>
-  import("./components/pages/InventoryStatusPage").then((module) => ({ default: module.InventoryStatusPage })),
-);
-const LossReportPage = lazy(() => import("./components/pages/LossReportPage").then((module) => ({ default: module.LossReportPage })));
-const AnalyticsPage = lazy(() => import("./components/pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
-const SettingsPage = lazy(() => import("./components/pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
-const QrScanPage = lazy(() => import("./components/pages/QrScanPage").then((module) => ({ default: module.QrScanPage })));
 
 function PageFallback() {
   return (
@@ -53,13 +43,21 @@ export default function App() {
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route element={<LayoutWrapper />}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/products" element={<ProductManagementPage />} />
-            <Route path="/inventory-status" element={<InventoryStatusPage />} />
-            <Route path="/loss-report" element={<LossReportPage />} />
-            <Route path="/qr-scan" element={<QrScanPage />} />
-            <Route path="/analysis" element={<AnalyticsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            {appRoutes.map((route) => {
+              const Page = route.component;
+              return (
+              <Route
+                key={route.path}
+                path={route.path}
+                element={
+                  <RouteAccessGuard route={route}>
+                    <Page />
+                  </RouteAccessGuard>
+                }
+              />
+              );
+            })}
+            <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

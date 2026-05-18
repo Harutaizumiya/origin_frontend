@@ -70,6 +70,25 @@ describe("requestJson auth handling", () => {
     ]);
   });
 
+  it("does not notify the unauthorized handler for forbidden responses", async () => {
+    const unauthorizedHandler = vi.fn();
+    setAuthToken("valid-token");
+    setUnauthorizedHandler(unauthorizedHandler);
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({ code: 4031, message: "forbidden", data: null }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(requestJson("/admin-only")).rejects.toMatchObject({
+      status: 403,
+      code: 4031,
+      message: "forbidden",
+    });
+    expect(unauthorizedHandler).not.toHaveBeenCalled();
+  });
+
   it("does not record API error logs for successful requests", async () => {
     vi.stubEnv("VITE_LOG_ENABLED", "true");
     const fetchMock = vi.fn().mockResolvedValue({

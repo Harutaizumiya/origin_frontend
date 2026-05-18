@@ -9,6 +9,8 @@ interface SidebarItemProps {
   to: string;
   collapsed: boolean;
   active?: boolean;
+  compact?: boolean;
+  trailingIcon?: React.ReactNode;
 }
 
 const SIDEBAR_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
@@ -24,13 +26,18 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
   to,
   collapsed,
   active = false,
+  compact = false,
+  trailingIcon,
 }) => {
   const location = useLocation();
   const isActive = active || location.pathname === to;
+  const itemHeight = compact ? 40 : 48;
+  const iconLeft = compact ? 16 : ICON_ANCHOR_LEFT;
+  const labelLeft = compact ? 44 : LABEL_LEFT;
 
   return (
     <Link to={to} className="group relative block px-2" title={collapsed ? label : undefined}>
-      <div className="relative h-12">
+      <div className="relative" style={{ height: `${itemHeight}px` }}>
         <motion.div
           initial={false}
           animate={{
@@ -38,7 +45,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
             scale: isActive ? 1 : 0.96,
             backgroundColor: "rgba(255, 255, 255, 1)",
             left: collapsed ? 10 : 0,
-            width: collapsed ? COLLAPSED_PILL_WIDTH : EXPANDED_PILL_WIDTH,
+            width: collapsed ? COLLAPSED_PILL_WIDTH : compact ? 196 : EXPANDED_PILL_WIDTH,
           }}
           transition={{ duration: SIDEBAR_ANIMATION_DURATION, ease: [0.22, 1, 0.36, 1] }}
           className="pointer-events-none absolute bottom-0 top-0 rounded-full shadow-sm"
@@ -58,7 +65,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
         <div className="relative h-full">
           <div
             className="absolute top-1/2 -translate-y-1/2"
-            style={{ left: `${ICON_ANCHOR_LEFT}px` }}
+            style={{ left: `${iconLeft}px` }}
           >
             <motion.div
               initial={false}
@@ -79,14 +86,14 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
                   isActive
                     ? "text-primary"
                     : "text-on-surface-variant group-hover:text-primary",
-                )}
+                )} 
               />
             </motion.div>
           </div>
 
           <div
             className="absolute right-4 top-1/2 min-w-0 -translate-y-1/2 overflow-hidden"
-            style={{ left: `${LABEL_LEFT}px` }}
+            style={{ left: `${labelLeft}px` }}
           >
             <motion.div
               initial={false}
@@ -107,6 +114,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
               </span>
             </motion.div>
           </div>
+          {!collapsed && trailingIcon ? <div className="absolute right-6 top-1/2 -translate-y-1/2">{trailingIcon}</div> : null}
         </div>
       </div>
     </Link>

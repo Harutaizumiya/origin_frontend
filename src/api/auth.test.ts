@@ -15,9 +15,12 @@ describe("auth api", () => {
       user: {
         id: 7,
         username: "manager",
-        display_name: "Manager",
-        role: "admin",
-        avatar_url: null,
+        email: "manager@example.com",
+        first_name: "三",
+        last_name: "张",
+        is_staff: true,
+        is_superuser: true,
+        permissions: ["products_read"],
       },
     };
     const fetchMock = vi.fn().mockResolvedValue({
@@ -32,9 +35,14 @@ describe("auth api", () => {
       user: {
         id: 7,
         username: "manager",
-        displayName: "Manager",
-        role: "admin",
-        avatarUrl: null,
+        email: "manager@example.com",
+        firstName: "三",
+        lastName: "张",
+        isStaff: true,
+        isSuperuser: true,
+        permissions: ["products_read"],
+        displayName: "张三",
+        roleLabel: "超级管理员",
       },
     });
 
@@ -53,9 +61,12 @@ describe("auth api", () => {
         data: {
           id: 8,
           username: "operator",
-          displayName: "Operator",
-          role: "operator",
-          avatarUrl: "https://example.test/avatar.png",
+          email: "",
+          first_name: "",
+          last_name: "",
+          is_staff: false,
+          is_superuser: false,
+          permissions: ["qr_scans_create"],
         },
       }),
     });
@@ -64,9 +75,14 @@ describe("auth api", () => {
     await expect(getCurrentUser()).resolves.toEqual({
       id: 8,
       username: "operator",
-      displayName: "Operator",
-      role: "operator",
-      avatarUrl: "https://example.test/avatar.png",
+      email: "",
+      firstName: "",
+      lastName: "",
+      isStaff: false,
+      isSuperuser: false,
+      permissions: ["qr_scans_create"],
+      displayName: "operator",
+      roleLabel: "普通用户",
     });
 
     const [, options] = fetchMock.mock.calls[0];
@@ -77,11 +93,11 @@ describe("auth api", () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ data: null }),
+      json: async () => ({ data: { revoked: true } }),
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(logout("captured-token")).resolves.toBeNull();
+    await expect(logout("captured-token")).resolves.toEqual({ revoked: true });
 
     const [url, options] = fetchMock.mock.calls[0];
     expect(String(url)).toContain("/auth/logout");

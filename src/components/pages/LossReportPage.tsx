@@ -16,6 +16,7 @@ import {
   type BatchOperationDto,
 } from "../../api";
 import { cn } from "../../lib/utils";
+import { useAuth } from "../../providers/AuthProvider";
 import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
 import type { Product } from "./ProductManagement.types";
 
@@ -766,7 +767,11 @@ function LossHistoryModal({
 }
 
 export const LossReportPage: React.FC = () => {
+  const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
+  const canSubmitLoss = hasPermission("batch_operations_loss");
+  const canReadOperations = hasPermission("batch_operations_read");
+  const canRevertOperations = hasPermission("batch_operations_revert");
   const [isLossModalOpen, setIsLossModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyWindowDays, setHistoryWindowDays] = useState<LossHistoryWindowDays>(DEFAULT_HISTORY_WINDOW_DAYS);
@@ -799,7 +804,7 @@ export const LossReportPage: React.FC = () => {
 
   const historyQuery = useQuery({
     queryKey: [...queryKeys.operations.all, "loss-history", historyWindowDays],
-    enabled: isHistoryOpen && batchesQuery.status === "success" && productsQuery.status === "success",
+    enabled: canReadOperations && isHistoryOpen && batchesQuery.status === "success" && productsQuery.status === "success",
     queryFn: async () => {
       const products = productsQuery.data ?? [];
       const batches = batchesQuery.data ?? [];
@@ -822,7 +827,7 @@ export const LossReportPage: React.FC = () => {
             operation,
             batch,
             product,
-            canRevert: !operation.is_reverted && operation.reversed_operation_id === null,
+            canRevert: canRevertOperations && !operation.is_reverted && operation.reversed_operation_id === null,
           }));
         }),
       );
@@ -834,6 +839,9 @@ export const LossReportPage: React.FC = () => {
   });
 
   const openHistoryModal = () => {
+    if (!canReadOperations) {
+      return;
+    }
     setHistoryWindowDays(DEFAULT_HISTORY_WINDOW_DAYS);
     setIsHistoryOpen(true);
   };
@@ -913,6 +921,9 @@ export const LossReportPage: React.FC = () => {
   const isHistoryLoading = productsQuery.isLoading || batchesQuery.isLoading || historyQuery.isLoading;
 
   const openLossModal = (card: ProductLossCardData) => {
+    if (!canSubmitLoss) {
+      return;
+    }
     setSelectedCard(card);
     setSelectedBatchId(card.batches[0]?.id ?? null);
     setForm(DEFAULT_FORM);
@@ -937,6 +948,10 @@ export const LossReportPage: React.FC = () => {
   };
 
   const handleSubmitLoss = async () => {
+    if (!canSubmitLoss) {
+      setSubmitError("当前账号没有提交报损的权限。");
+      return;
+    }
     if (!selectedCard || !selectedBatchId) {
       setSubmitError("请先选择一个可报损批次。");
       return;
@@ -998,7 +1013,7 @@ export const LossReportPage: React.FC = () => {
   };
 
   const openRevertModal = (entry: LossHistoryEntry) => {
-    if (!entry.canRevert) {
+    if (!canRevertOperations || !entry.canRevert) {
       return;
     }
     setRevertingEntry(entry);
@@ -1081,14 +1096,16 @@ export const LossReportPage: React.FC = () => {
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">报损管理</h2>
           <p className="mt-1 text-on-surface-variant">按货物卡片发起报损，实际操作会落到对应批次，并同步沉淀到历史报损记录中。</p>
         </div>
-        <button
-          type="button"
-          onClick={openHistoryModal}
-          className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
-        >
-          <History size={18} />
-          报损记录
-        </button>
+        {canReadOperations ? (
+          <button
+            type="button"
+            onClick={openHistoryModal}
+            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
+          >
+            <History size={18} />
+            报损记录
+          </button>
+        ) : null}
       </div>
 
       {pageError ? (
@@ -1211,16 +1228,16 @@ export const LossReportPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => openLossModal(card)}
-                  disabled={card.reportableBatchCount === 0}
+                  disabled={card.reportableBatchCount === 0 || !canSubmitLoss}
                   className={cn(
                     "mt-4 inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold shadow-sm transition-all",
-                    card.reportableBatchCount > 0
+                    card.reportableBatchCount > 0 && canSubmitLoss
                       ? "bg-gradient-to-r from-primary to-primary-container text-white hover:shadow-lg"
                       : "cursor-not-allowed bg-surface-container-high text-on-surface-variant",
                   )}
                 >
                   <TriangleAlert size={16} />
-                  {card.reportableBatchCount > 0 ? "报损" : "暂无可报损批次"}
+                  {!canSubmitLoss ? "无报损权限" : card.reportableBatchCount > 0 ? "报损" : "暂无可报损批次"}
                 </button>
               </article>
             ))}

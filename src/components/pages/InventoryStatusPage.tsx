@@ -18,6 +18,7 @@ import {
 } from "../../api";
 import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
 import { cn } from "../../lib/utils";
+import { useAuth } from "../../providers/AuthProvider";
 import { FloatingActionButtons } from "../actions/FloatingActionButtons";
 import { Pagination } from "../common/Pagination";
 import { StatCard } from "../dashboard/StatCard";
@@ -612,7 +613,10 @@ const ViewToggle = memo(function ViewToggle({
 });
 
 export const InventoryStatusPage: React.FC = () => {
+  const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
+  const canCreateBatch = hasPermission("batches_create");
+  const canPrintLabel = hasPermission("label_payload_issue");
   const [detail, setDetail] = useState<InventoryBatchDetail | null>(null);
   const [view, setView] = useState<InventoryView>("card");
   const [currentPage, setCurrentPage] = useState(1);
@@ -744,6 +748,10 @@ export const InventoryStatusPage: React.FC = () => {
   }, []);
 
   const openLabelPrint = useCallback(async () => {
+    if (!canPrintLabel) {
+      setLabelPrintError("当前账号没有签发标签凭证的权限。");
+      return;
+    }
     if (!selectedItem) {
       return;
     }
@@ -797,18 +805,21 @@ export const InventoryStatusPage: React.FC = () => {
     } finally {
       setIsLabelPrintLoading(false);
     }
-  }, [queryClient, selectedItem, selectedMetrics]);
+  }, [canPrintLabel, queryClient, selectedItem, selectedMetrics]);
 
   const closeLabelPrint = useCallback(() => {
     setIsLabelPrintOpen(false);
   }, []);
 
   const openCreateBatchModal = useCallback(() => {
+    if (!canCreateBatch) {
+      return;
+    }
     setIsCreateBatchOpen(true);
     setSelectedProduct(null);
     setNewBatchError(null);
     setNewBatchForm(DEFAULT_NEW_BATCH_FORM);
-  }, []);
+  }, [canCreateBatch]);
 
   const closeCreateBatchModal = useCallback(() => {
     if (isSubmitting) {
@@ -835,6 +846,10 @@ export const InventoryStatusPage: React.FC = () => {
   }, []);
 
   const handleCreateBatch = useCallback(async () => {
+    if (!canCreateBatch) {
+      setNewBatchError("当前账号没有创建批次的权限。");
+      return;
+    }
     if (!selectedProduct) {
       setNewBatchError("请先选择一个货物。");
       return;
@@ -881,7 +896,7 @@ export const InventoryStatusPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [newBatchForm.manufactureDate, newBatchForm.quantity, newBatchForm.remarks, queryClient, reloadPageData, selectedProduct]);
+  }, [canCreateBatch, newBatchForm.manufactureDate, newBatchForm.quantity, newBatchForm.remarks, queryClient, reloadPageData, selectedProduct]);
 
   const closeBatchFeedback = useCallback(() => {
     setIsBatchFeedbackOpen(false);
@@ -946,14 +961,16 @@ export const InventoryStatusPage: React.FC = () => {
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">库存状态</h2>
           <p className="mt-1 text-on-surface-variant">批次列表、新建批次与详情弹窗已切到 Django `batches` 接口。</p>
         </div>
-        <button
-          type="button"
-          onClick={openCreateBatchModal}
-          className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
-        >
-          <Plus size={18} />
-          新建批次
-        </button>
+        {canCreateBatch ? (
+          <button
+            type="button"
+            onClick={openCreateBatchModal}
+            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
+          >
+            <Plus size={18} />
+            新建批次
+          </button>
+        ) : null}
       </div>
 
       {pageError ? (
@@ -1007,6 +1024,7 @@ export const InventoryStatusPage: React.FC = () => {
         item={selectedItem}
         detail={detail}
         metrics={selectedMetrics}
+        canPrintLabel={canPrintLabel}
         onClose={closeDetail}
         onPrintLabel={openLabelPrint}
         formatDate={formatDate}

@@ -114,6 +114,7 @@ export const InventoryBatchDetailModal: React.FC<InventoryBatchDetailModalProps>
   item,
   detail,
   metrics,
+  canPrintLabel,
   onClose,
   onPrintLabel,
   formatDate,
@@ -304,14 +305,16 @@ export const InventoryBatchDetailModal: React.FC<InventoryBatchDetailModalProps>
               </div>
 
               <div className="flex flex-col items-stretch justify-end gap-3 border-t border-surface-container-high bg-white/80 p-8 backdrop-blur-sm sm:flex-row">
-                <button
-                  type="button"
-                  onClick={onPrintLabel}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-6 py-3 text-xs font-bold text-white shadow-md transition-all hover:shadow-lg"
-                >
-                  <Printer size={14} />
-                  打印标签
-                </button>
+                {canPrintLabel ? (
+                  <button
+                    type="button"
+                    onClick={onPrintLabel}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-6 py-3 text-xs font-bold text-white shadow-md transition-all hover:shadow-lg"
+                  >
+                    <Printer size={14} />
+                    打印标签
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-surface-container px-6 py-3 text-xs font-bold text-on-surface transition-colors hover:bg-surface-container-high"

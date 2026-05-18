@@ -1,7 +1,10 @@
 import React from "react";
-import { LoaderCircle } from "lucide-react";
+import { LockKeyhole, LoaderCircle } from "lucide-react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../../providers/AuthProvider";
+import type { AppRoute } from "../../routes/appRoutes";
+import { appRoutes } from "../../routes/appRoutes";
+import { canAccessRoute, getFirstAccessibleRoute } from "../../routes/routeAccess";
 
 function AuthGateFallback() {
   return (
@@ -60,6 +63,35 @@ export function ProtectedRoute() {
   return <Outlet />;
 }
 
+export function NoPermissionPage() {
+  return (
+    <div className="flex min-h-[420px] items-center justify-center px-6">
+      <section className="max-w-md rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest p-8 text-center ambient-shadow">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-container-low text-on-surface-variant">
+          <LockKeyhole size={24} />
+        </div>
+        <h1 className="mt-5 font-headline text-2xl font-extrabold tracking-tight text-on-surface">无权访问</h1>
+        <p className="mt-3 text-sm leading-6 text-on-surface-variant">当前账号没有访问该页面所需权限，请联系超级管理员调整角色或直接权限。</p>
+      </section>
+    </div>
+  );
+}
+
+export function RouteAccessGuard({ route, children }: { route: AppRoute; children: React.ReactNode }) {
+  const { user } = useAuth();
+  const firstAccessibleRoute = getFirstAccessibleRoute(user, appRoutes);
+
+  if (!canAccessRoute(user, route)) {
+    if (route.path === "/" && firstAccessibleRoute) {
+      return <Navigate to={firstAccessibleRoute.path} replace />;
+    }
+
+    return <NoPermissionPage />;
+  }
+
+  return <>{children}</>;
+}
+
 export function PublicOnlyRoute() {
   const auth = useAuth();
   const location = useLocation();
@@ -70,7 +102,8 @@ export function PublicOnlyRoute() {
   }
 
   if (auth.isAuthenticated) {
-    return <Navigate to={from?.pathname || "/"} replace />;
+    const firstAccessibleRoute = getFirstAccessibleRoute(auth.user, appRoutes);
+    return <Navigate to={from?.pathname || firstAccessibleRoute?.path || "/settings/profile"} replace />;
   }
 
   return <Outlet />;

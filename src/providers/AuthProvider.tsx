@@ -4,6 +4,7 @@ import {
   ApiClientError,
   clearAuthToken,
   getCurrentUser,
+  getAuthToken,
   login as loginRequest,
   logout as logoutRequest,
   setAuthToken,
@@ -16,6 +17,8 @@ import { logger } from "../lib/logger";
 const TOKEN_STORAGE_KEY = "origin.auth.token";
 
 interface AuthContextValue {
+  hasAnyPermission: (codes: string[]) => boolean;
+  hasPermission: (code: string) => boolean;
   initializationError: string | null;
   isAuthenticated: boolean;
   loading: boolean;
@@ -136,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logger.info("auth", "User logged in", {
           event: "auth_login_succeeded",
           userId: result.user.id,
-          role: result.user.role,
+          role: result.user.roleLabel,
         });
         return result.user;
       } catch (error) {
@@ -165,8 +168,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [clearLocalSession, token, user?.id]);
 
+  const hasPermission = useCallback(
+    (code: string) => {
+      if (!user) {
+        return false;
+      }
+
+      return user.isSuperuser || user.permissions.includes(code);
+    },
+    [user],
+  );
+
+  const hasAnyPermission = useCallback(
+    (codes: string[]) => {
+      if (codes.length === 0) {
+        return true;
+      }
+
+      return codes.some(hasPermission);
+    },
+    [hasPermission],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
+      hasAnyPermission,
+      hasPermission,
       initializationError,
       isAuthenticated: Boolean(user && token),
       loading,
@@ -176,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       user,
     }),
-    [initializationError, initialize, loading, login, logout, token, user],
+    [hasAnyPermission, hasPermission, initializationError, initialize, loading, login, logout, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

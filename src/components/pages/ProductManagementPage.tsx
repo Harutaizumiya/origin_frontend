@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { ApiClientError, createProduct, deleteProduct, listProductCategories, listProducts, queryKeys, updateProduct } from "../../api";
 import { cn } from "../../lib/utils";
+import { useAuth } from "../../providers/AuthProvider";
 import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
 import { Pagination } from "../common/Pagination";
 import type { Product, ProductFilters, ProductFormInput } from "./ProductManagement.types";
@@ -159,6 +160,7 @@ function ProductFormModal({
   onClose,
   onDelete,
   onSubmit,
+  canDelete,
 }: {
   open: boolean;
   product: Product | null;
@@ -170,6 +172,7 @@ function ProductFormModal({
   onClose: () => void;
   onDelete: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  canDelete: boolean;
 }) {
   return (
     <AnimatePresence>
@@ -301,7 +304,7 @@ function ProductFormModal({
 
                 <div className="flex flex-col gap-3 border-t border-surface-container-high pt-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    {product ? (
+                    {product && canDelete ? (
                       <button
                         type="button"
                         onClick={onDelete}
@@ -391,7 +394,11 @@ function DeleteConfirmModal({
 }
 
 export const ProductManagementPage: React.FC = () => {
+  const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
+  const canCreateProduct = hasPermission("products_create");
+  const canUpdateProduct = hasPermission("products_update");
+  const canDeleteProduct = hasPermission("products_delete");
   const [filters, setFilters] = useState<ProductFilters>({
     category: "",
     location: "",
@@ -484,14 +491,20 @@ export const ProductManagementPage: React.FC = () => {
   }, [isFeedbackOpen]);
 
   const openCreateModal = useCallback(() => {
+    if (!canCreateProduct) {
+      return;
+    }
     setEditingProduct(null);
     setForm(EMPTY_FORM);
     setBarcodeError(null);
     setSubmitError(null);
     setIsFormOpen(true);
-  }, []);
+  }, [canCreateProduct]);
 
   const openEditModal = useCallback((product: Product) => {
+    if (!canUpdateProduct) {
+      return;
+    }
     setEditingProduct(product);
     setBarcodeError(null);
     setSubmitError(null);
@@ -505,7 +518,7 @@ export const ProductManagementPage: React.FC = () => {
       manufacturer: product.manufacturer,
     });
     setIsFormOpen(true);
-  }, []);
+  }, [canUpdateProduct]);
 
   const resetFormModal = useCallback(() => {
     setIsFormOpen(false);
@@ -554,6 +567,11 @@ export const ProductManagementPage: React.FC = () => {
 
   const handleSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (editingProduct ? !canUpdateProduct : !canCreateProduct) {
+      setSubmitError("当前账号没有保存货物的权限。");
+      return;
+    }
 
     if (!form.barcode.trim() || !form.product_name.trim() || !form.manufacturer.trim() || !form.shelf_life_days.trim()) {
       return;
@@ -623,10 +641,14 @@ export const ProductManagementPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [editingProduct, form, products, reloadAfterMutation, resetFormModal]);
+  }, [canCreateProduct, canUpdateProduct, editingProduct, form, products, reloadAfterMutation, resetFormModal]);
 
   const handleDelete = useCallback(async () => {
     if (!productToDelete) {
+      return;
+    }
+    if (!canDeleteProduct) {
+      setMutationError("当前账号没有删除货物的权限。");
       return;
     }
 
@@ -658,17 +680,17 @@ export const ProductManagementPage: React.FC = () => {
     } finally {
       setIsDeleting(false);
     }
-  }, [closeFormModal, editingProduct?.id, productToDelete, reloadAfterMutation]);
+  }, [canDeleteProduct, closeFormModal, editingProduct?.id, productToDelete, reloadAfterMutation]);
 
   const openDeleteConfirm = useCallback((product: Product) => {
     setProductToDelete(product);
   }, []);
 
   const openEditingProductDeleteConfirm = useCallback(() => {
-    if (editingProduct) {
+    if (editingProduct && canDeleteProduct) {
       openDeleteConfirm(editingProduct);
     }
-  }, [editingProduct, openDeleteConfirm]);
+  }, [canDeleteProduct, editingProduct, openDeleteConfirm]);
 
   const closeDeleteConfirm = useCallback(() => {
     if (!isDeleting) {
@@ -683,14 +705,16 @@ export const ProductManagementPage: React.FC = () => {
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">货物管理</h2>
           <p className="mt-1 text-on-surface-variant">当前页面已接入 Django `products` 接口，支持查询、新增、编辑与删除。</p>
         </div>
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
-        >
-          <Plus size={18} />
-          新增货物
-        </button>
+        {canCreateProduct ? (
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
+          >
+            <Plus size={18} />
+            新增货物
+          </button>
+        ) : null}
       </div>
 
       <section className="ambient-shadow mb-8 rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6">
@@ -815,6 +839,7 @@ export const ProductManagementPage: React.FC = () => {
                       <td className="px-8 py-5 text-sm text-on-surface-variant">{formatDate(product.updated_at)}</td>
                       <td className="px-8 py-5">
                         <div className="flex items-center justify-end">
+                          {canUpdateProduct ? (
                           <div className="group relative">
                             <button
                               type="button"
@@ -829,6 +854,9 @@ export const ProductManagementPage: React.FC = () => {
                               编辑
                             </span>
                           </div>
+                          ) : (
+                            <span className="text-sm text-on-surface-variant">只读</span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -872,6 +900,7 @@ export const ProductManagementPage: React.FC = () => {
         onClose={closeFormModal}
         onDelete={openEditingProductDeleteConfirm}
         onSubmit={handleSubmit}
+        canDelete={canDeleteProduct}
       />
 
       <DeleteConfirmModal

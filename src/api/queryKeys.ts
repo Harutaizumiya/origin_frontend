@@ -30,4 +30,10 @@ export const queryKeys = {
     batch: (batchId: number) => [...queryKeys.operations.all, "batch", batchId] as const,
     list: (batchId: number, params: BatchOperationListParams = {}) => [...queryKeys.operations.batch(batchId), params] as const,
   },
+  authManagement: {
+    all: ["auth-management"] as const,
+    permissions: () => [...queryKeys.authManagement.all, "permissions"] as const,
+    roles: () => [...queryKeys.authManagement.all, "roles"] as const,
+    users: () => [...queryKeys.authManagement.all, "users"] as const,
+  },
 };
