@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "./types";
 import { clearAuthToken, requestJson, setAuthToken, setUnauthorizedHandler } from "./client";
+import { clearLogEntries, getLogEntries } from "../lib/logger";
 
 describe("requestJson auth handling", () => {
   afterEach(() => {
     clearAuthToken();
+    clearLogEntries();
     setUnauthorizedHandler(null);
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
@@ -40,6 +43,7 @@ describe("requestJson auth handling", () => {
   });
 
   it("notifies the unauthorized handler for authenticated 401 responses", async () => {
+    vi.stubEnv("VITE_LOG_ENABLED", "true");
     const unauthorizedHandler = vi.fn();
     setAuthToken("expired-token");
     setUnauthorizedHandler(unauthorizedHandler);
@@ -52,5 +56,31 @@ describe("requestJson auth handling", () => {
 
     await expect(requestJson("/protected")).rejects.toBeInstanceOf(ApiClientError);
     expect(unauthorizedHandler).toHaveBeenCalledTimes(1);
+    expect(getLogEntries()).toEqual([
+      expect.objectContaining({
+        level: "error",
+        scope: "api.client",
+        event: "api_request_failed",
+        details: expect.objectContaining({
+          path: "/protected",
+          status: 401,
+          code: 4011,
+        }),
+      }),
+    ]);
+  });
+
+  it("does not record API error logs for successful requests", async () => {
+    vi.stubEnv("VITE_LOG_ENABLED", "true");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { ok: true } }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(requestJson("/ping")).resolves.toEqual({ ok: true });
+
+    expect(getLogEntries()).toEqual([]);
   });
 });

@@ -11,6 +11,7 @@ import {
   type AuthenticatedUser,
   type LoginCredentials,
 } from "../api";
+import { logger } from "../lib/logger";
 
 const TOKEN_STORAGE_KEY = "origin.auth.token";
 
@@ -63,6 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [initializationError, setInitializationError] = useState<string | null>(null);
 
   const clearLocalSession = useCallback(() => {
+    logger.debug("auth", "Local session cleared", {
+      event: "auth_session_cleared",
+      hadToken: Boolean(getAuthToken()),
+    });
     removeStoredToken();
     clearAuthToken();
     setToken(null);
@@ -92,8 +97,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
+        logger.warn("auth", "Stored session is unauthorized", {
+          event: "auth_stored_session_unauthorized",
+          status: error.status,
+          code: error.code,
+        });
         clearLocalSession();
       } else {
+        logger.error("auth", "Failed to initialize authentication state", {
+          event: "auth_initialization_failed",
+          error,
+        });
         setInitializationError(getInitializationErrorMessage(error));
       }
     } finally {
@@ -111,14 +125,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (credentials: LoginCredentials) => {
-      const result = await loginRequest(credentials);
-      writeStoredToken(result.token);
-      setAuthToken(result.token);
-      setToken(result.token);
-      setUser(result.user);
-      setInitializationError(null);
-      queryClient.clear();
-      return result.user;
+      try {
+        const result = await loginRequest(credentials);
+        writeStoredToken(result.token);
+        setAuthToken(result.token);
+        setToken(result.token);
+        setUser(result.user);
+        setInitializationError(null);
+        queryClient.clear();
+        logger.info("auth", "User logged in", {
+          event: "auth_login_succeeded",
+          userId: result.user.id,
+          role: result.user.role,
+        });
+        return result.user;
+      } catch (error) {
+        logger.warn("auth", "User login failed", {
+          event: "auth_login_failed",
+          username: credentials.username,
+          error,
+        });
+        throw error;
+      }
     },
     [queryClient],
   );
@@ -126,11 +154,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     const activeToken = token;
     clearLocalSession();
+    logger.info("auth", "User logged out", {
+      event: "auth_logout",
+      hadToken: Boolean(activeToken),
+      userId: user?.id ?? null,
+    });
 
     if (activeToken) {
       await logoutRequest(activeToken).catch(() => undefined);
     }
-  }, [clearLocalSession, token]);
+  }, [clearLocalSession, token, user?.id]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

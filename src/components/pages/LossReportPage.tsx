@@ -14,7 +14,6 @@ import {
   type ApiListData,
   type BatchDto,
   type BatchOperationDto,
-  type BatchOperationListParams,
 } from "../../api";
 import { cn } from "../../lib/utils";
 import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
@@ -41,6 +40,8 @@ interface ProductLossCardData {
   reportableBatchCount: number;
 }
 
+type LossHistoryWindowDays = 7 | 30;
+
 interface RevertFormState {
   remarks: string;
 }
@@ -60,6 +61,9 @@ const DEFAULT_FORM: LossFormState = {
 const DEFAULT_REVERT_FORM: RevertFormState = {
   remarks: "",
 };
+
+const DEFAULT_HISTORY_WINDOW_DAYS: LossHistoryWindowDays = 7;
+const DEBUG_HISTORY_WINDOW_DAYS: LossHistoryWindowDays = 30;
 
 interface LossFilters {
   query: string;
@@ -120,6 +124,58 @@ function formatQuantity(value: string | number) {
 
 function normalizeText(value: string | null) {
   return value?.trim() || "-";
+}
+
+function getHistoryWindowCutoff(days: LossHistoryWindowDays) {
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  if (days === DEBUG_HISTORY_WINDOW_DAYS) {
+    cutoff.setMonth(cutoff.getMonth() - 1);
+    return cutoff.getTime();
+  }
+
+  cutoff.setDate(cutoff.getDate() - (days - 1));
+  return cutoff.getTime();
+}
+
+function getHistoryWindowLabel(days: LossHistoryWindowDays) {
+  return days === DEBUG_HISTORY_WINDOW_DAYS ? "最近 1 个月" : "最近 7 天";
+}
+
+function sortOperationsByCreatedAtDesc(items: BatchOperationDto[]) {
+  return [...items].sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+}
+
+async function loadLossOperationsWithinWindow(batchId: number, cutoffMs: number) {
+  const items: BatchOperationDto[] = [];
+  let page = 1;
+  let totalPages = 1;
+
+  while (page <= totalPages) {
+    const response = await listBatchOperations(batchId, {
+      operation_type: "loss",
+      page,
+      size: FETCH_PAGE_SIZE,
+    });
+    const pageItems = sortOperationsByCreatedAtDesc(response.items);
+    totalPages = Math.max(1, Math.ceil((response.pagination?.total ?? response.items.length) / FETCH_PAGE_SIZE));
+
+    items.push(...pageItems.filter((operation) => new Date(operation.created_at).getTime() >= cutoffMs));
+
+    if (pageItems.length === 0) {
+      break;
+    }
+
+    // Stop once the current page has already crossed the active history window.
+    const oldestItemTime = new Date(pageItems[pageItems.length - 1].created_at).getTime();
+    if (oldestItemTime < cutoffMs) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return items;
 }
 
 function getErrorMessage(error: unknown) {
@@ -429,6 +485,8 @@ function LossReportModal({
 
 function LossHistoryModal({
   open,
+  windowDays,
+  showExtendedWindowToggle,
   entries,
   loading,
   error,
@@ -437,12 +495,15 @@ function LossHistoryModal({
   revertError,
   reverting,
   onChangeRevertForm,
+  onChangeWindow,
   onOpenRevert,
   onCloseRevert,
   onConfirmRevert,
   onClose,
 }: {
   open: boolean;
+  windowDays: LossHistoryWindowDays;
+  showExtendedWindowToggle: boolean;
   entries: LossHistoryEntry[];
   loading: boolean;
   error: string | null;
@@ -451,11 +512,14 @@ function LossHistoryModal({
   revertError: string | null;
   reverting: boolean;
   onChangeRevertForm: (value: string) => void;
+  onChangeWindow: (days: LossHistoryWindowDays) => void;
   onOpenRevert: (entry: LossHistoryEntry) => void;
   onCloseRevert: () => void;
   onConfirmRevert: () => void;
   onClose: () => void;
 }) {
+  const activeWindowLabel = getHistoryWindowLabel(windowDays);
+
   return (
     <AnimatePresence>
       {open ? (
@@ -478,7 +542,9 @@ function LossHistoryModal({
               <div className="flex items-start justify-between border-b border-surface-container-high px-8 py-6">
                 <div>
                   <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">报损记录</h3>
-                  <p className="mt-1 text-sm text-on-surface-variant">聚合展示所有批次上的历史 `loss` 操作记录。</p>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    生产模式默认展示最近 7 天报损记录，开发模式可扩展查看最近 1 个月。
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -490,12 +556,46 @@ function LossHistoryModal({
               </div>
 
               <div className="max-h-[70vh] overflow-y-auto px-8 py-8">
+                <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-surface-container/70 bg-surface-container-low p-5 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-on-surface">当前范围</div>
+                    <div className="mt-1 text-sm text-on-surface-variant">
+                      {showExtendedWindowToggle ? "默认展示最近 7 天，可切换查看最近 1 个月。" : "当前默认展示最近 7 天报损记录。"}
+                    </div>
+                  </div>
+
+                  {showExtendedWindowToggle ? (
+                    <div className="inline-flex rounded-2xl bg-surface-container p-1">
+                      {[DEFAULT_HISTORY_WINDOW_DAYS, DEBUG_HISTORY_WINDOW_DAYS].map((days) => {
+                        const isActive = windowDays === days;
+                        return (
+                          <button
+                            key={days}
+                            type="button"
+                            onClick={() => onChangeWindow(days)}
+                            className={cn(
+                              "rounded-2xl px-4 py-2 text-sm font-semibold transition-all",
+                              isActive ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:text-primary",
+                            )}
+                          >
+                            {getHistoryWindowLabel(days)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="inline-flex w-fit rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
+                      {activeWindowLabel}
+                    </div>
+                  )}
+                </div>
+
                 {loading ? (
                   <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
                     <LoaderCircle size={28} className="animate-spin text-on-surface-variant" />
                     <div>
                       <h4 className="text-lg font-bold text-on-surface">正在汇总报损记录</h4>
-                      <p className="mt-1 text-sm text-on-surface-variant">会按批次逐个拉取 `operations` 接口，请稍候。</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">正在加载 {activeWindowLabel} 内的报损记录。</p>
                     </div>
                   </div>
                 ) : error ? (
@@ -578,7 +678,7 @@ function LossHistoryModal({
                     </div>
                     <div>
                       <h4 className="text-lg font-bold text-on-surface">暂无报损记录</h4>
-                      <p className="mt-1 text-sm text-on-surface-variant">当前还没有任何批次执行过 `loss` 操作。</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">{activeWindowLabel}内还没有任何批次执行过 `loss` 操作。</p>
                     </div>
                   </div>
                 )}
@@ -669,6 +769,7 @@ export const LossReportPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [isLossModalOpen, setIsLossModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyWindowDays, setHistoryWindowDays] = useState<LossHistoryWindowDays>(DEFAULT_HISTORY_WINDOW_DAYS);
   const [selectedCard, setSelectedCard] = useState<ProductLossCardData | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
   const [form, setForm] = useState<LossFormState>(DEFAULT_FORM);
@@ -697,42 +798,45 @@ export const LossReportPage: React.FC = () => {
   });
 
   const historyQuery = useQuery({
-    queryKey: [...queryKeys.operations.all, "loss-history"],
+    queryKey: [...queryKeys.operations.all, "loss-history", historyWindowDays],
     enabled: isHistoryOpen && batchesQuery.status === "success" && productsQuery.status === "success",
     queryFn: async () => {
       const products = productsQuery.data ?? [];
       const batches = batchesQuery.data ?? [];
       const productMap = new Map(products.map((product) => [product.id, product]));
+      const cutoffMs = getHistoryWindowCutoff(historyWindowDays);
 
       const operationGroups = await Promise.all(
         batches.map(async (batch) => {
-          const items = await loadAllPages<BatchOperationDto, BatchOperationListParams>(
-            (params) => listBatchOperations(batch.id, params),
-            {},
-          );
-          return { batch, items };
-        }),
-      );
-
-      return operationGroups
-        .flatMap(({ batch, items }) => {
           const product = productMap.get(batch.product_id);
           if (!product) {
             return [];
           }
 
-          return items
-            .filter((operation) => operation.operation_type === "loss")
-            .map((operation) => ({
-              operation,
-              batch,
-              product,
-              canRevert: !operation.is_reverted && operation.reversed_operation_id === null,
-            }));
-        })
+          const items = await loadLossOperationsWithinWindow(batch.id, cutoffMs);
+          if (items.length === 0) {
+            return [];
+          }
+
+          return items.map((operation) => ({
+            operation,
+            batch,
+            product,
+            canRevert: !operation.is_reverted && operation.reversed_operation_id === null,
+          }));
+        }),
+      );
+
+      return operationGroups
+        .flat()
         .sort((left, right) => new Date(right.operation.created_at).getTime() - new Date(left.operation.created_at).getTime());
     },
   });
+
+  const openHistoryModal = () => {
+    setHistoryWindowDays(DEFAULT_HISTORY_WINDOW_DAYS);
+    setIsHistoryOpen(true);
+  };
 
   const isLoading = productsQuery.isLoading || batchesQuery.isLoading;
   const pageError = productsQuery.error
@@ -799,6 +903,14 @@ export const LossReportPage: React.FC = () => {
       return matchesCategory && matchesQuery;
     });
   }, [filters.category, filters.query, productCards]);
+
+  useEffect(() => {
+    if (!isDebugMode && historyWindowDays !== DEFAULT_HISTORY_WINDOW_DAYS) {
+      setHistoryWindowDays(DEFAULT_HISTORY_WINDOW_DAYS);
+    }
+  }, [historyWindowDays, isDebugMode]);
+
+  const isHistoryLoading = productsQuery.isLoading || batchesQuery.isLoading || historyQuery.isLoading;
 
   const openLossModal = (card: ProductLossCardData) => {
     setSelectedCard(card);
@@ -971,7 +1083,7 @@ export const LossReportPage: React.FC = () => {
         </div>
         <button
           type="button"
-          onClick={() => setIsHistoryOpen(true)}
+          onClick={openHistoryModal}
           className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
         >
           <History size={18} />
@@ -1151,8 +1263,10 @@ export const LossReportPage: React.FC = () => {
 
       <LossHistoryModal
         open={isHistoryOpen}
+        windowDays={historyWindowDays}
+        showExtendedWindowToggle={isDebugMode}
         entries={historyQuery.data ?? []}
-        loading={historyQuery.isLoading}
+        loading={isHistoryLoading}
         error={historyQuery.error ? getErrorMessage(historyQuery.error) : null}
         revertingEntry={revertingEntry}
         revertForm={revertForm}
@@ -1162,6 +1276,7 @@ export const LossReportPage: React.FC = () => {
           setRevertForm({ remarks: value });
           setRevertError(null);
         }}
+        onChangeWindow={setHistoryWindowDays}
         onOpenRevert={openRevertModal}
         onCloseRevert={closeRevertModal}
         onConfirmRevert={handleConfirmRevert}
