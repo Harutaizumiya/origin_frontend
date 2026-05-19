@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Cable, CheckCircle2, LoaderCircle, MonitorUp, Printer, Usb, X } from "lucide-react";
+import { Cable, LoaderCircle, MonitorUp, Printer, Usb, X } from "lucide-react";
 import {
   DEFAULT_LABEL_PRINTER_OPTIONS,
   buildLabelQrDataUrl,
@@ -14,6 +14,7 @@ import {
   type LabelPrinterTransport,
 } from "../../lib/labelPrinter";
 import { cn } from "../../lib/utils";
+import { getErrorDebugDetail, OperationFeedbackToast, type OperationFeedbackState } from "../common/OperationFeedbackToast";
 
 interface LabelPrintModalProps {
   open: boolean;
@@ -22,11 +23,6 @@ interface LabelPrintModalProps {
   error?: string | null;
   onClose: () => void;
   onRetry?: () => void;
-}
-
-interface PrintFeedback {
-  type: "success" | "error";
-  message: string;
 }
 
 const PROTOCOL_OPTIONS: Array<{ value: LabelPrinterProtocol; label: string; hint: string }> = [
@@ -158,7 +154,8 @@ const LabelPreview: React.FC<{
 export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload, loading = false, error = null, onClose, onRetry }) => {
   const [options, setOptions] = useState<LabelPrinterOptions>(DEFAULT_LABEL_PRINTER_OPTIONS);
   const [printing, setPrinting] = useState(false);
-  const [feedback, setFeedback] = useState<PrintFeedback | null>(null);
+  const [feedback, setFeedback] = useState<OperationFeedbackState | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [previewQrDataUrl, setPreviewQrDataUrl] = useState<string | null>(null);
   const [previewQrLoading, setPreviewQrLoading] = useState(false);
   const [previewQrError, setPreviewQrError] = useState<string | null>(null);
@@ -224,8 +221,10 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
     if (!payload?.qrCode.trim()) {
       setFeedback({
         type: "error",
-        message: "二维码凭证未加载，不能发送打印命令。",
+        title: "打印失败",
+        description: "二维码凭证未加载，不能发送打印命令。",
       });
+      setFeedbackOpen(true);
       return;
     }
 
@@ -236,21 +235,28 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
       const result = await sendLabelPrintCommand(payload, effectiveOptions);
       setFeedback({
         type: "success",
-        message: result.bytes ? `打印命令已发送，写入 ${result.bytes} bytes。` : "已打开系统打印流程。",
+        title: "打印命令已发送",
+        description: result.bytes ? `打印命令已发送，写入 ${result.bytes} bytes。` : "已打开系统打印流程。",
       });
+      setFeedbackOpen(true);
     } catch (error) {
       setFeedback({
         type: "error",
-        message: error instanceof Error ? error.message : "打印失败，请检查打印机连接。",
+        title: "打印失败",
+        description: "打印失败，请检查打印机连接。",
+        debugDetail: getErrorDebugDetail(error),
       });
+      setFeedbackOpen(true);
     } finally {
       setPrinting(false);
     }
   }, [effectiveOptions, payload]);
 
   return (
-    <AnimatePresence>
-      {open ? (
+    <>
+      <OperationFeedbackToast open={feedbackOpen} feedback={feedback} onClose={() => setFeedbackOpen(false)} />
+      <AnimatePresence>
+        {open ? (
         <>
           <motion.div
             initial={{ opacity: 0 }}
@@ -446,17 +452,6 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
                   ) : null}
                 </section>
 
-                {feedback ? (
-                  <div
-                    className={cn(
-                      "flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold",
-                      feedback.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-600",
-                    )}
-                  >
-                    {feedback.type === "success" ? <CheckCircle2 size={16} /> : <Printer size={16} />}
-                    {feedback.message}
-                  </div>
-                ) : null}
               </div>
 
               <div className="flex flex-col items-stretch justify-end gap-3 border-t border-surface-container-high bg-white/80 p-6 backdrop-blur-sm sm:flex-row">
@@ -481,7 +476,8 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
             </motion.section>
           </div>
         </>
-      ) : null}
-    </AnimatePresence>
+        ) : null}
+      </AnimatePresence>
+    </>
   );
 };

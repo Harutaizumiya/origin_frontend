@@ -1,15 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearAuthToken, setAuthToken } from "./client";
+import { clearCsrfToken, setCsrfToken } from "./client";
 import { createRole, createUser, listPermissions, listRoles, listUsers, resetUserPassword, updateRole, updateUser } from "./authManagement";
 
 describe("auth management api", () => {
   afterEach(() => {
-    clearAuthToken();
+    clearCsrfToken();
     vi.unstubAllGlobals();
   });
 
-  it("loads permissions, roles and users with the active token", async () => {
-    setAuthToken("admin-token");
+  it("loads permissions, roles and users with cookie credentials", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -52,10 +51,12 @@ describe("auth management api", () => {
     await expect(listRoles()).resolves.toEqual([{ id: 1, name: "operator", permissions: ["products_read"] }]);
     await expect(listUsers()).resolves.toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe("Bearer admin-token");
+    expect(fetchMock.mock.calls[0][1].credentials).toBe("include");
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
   });
 
   it("sends snake_case request bodies for role and user mutations", async () => {
+    setCsrfToken("csrf-token");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -67,10 +68,12 @@ describe("auth management api", () => {
     await updateRole(1, { name: "manager", permission_codes: ["analytics_read"] });
 
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ name: "operator", permission_codes: ["products_read"] });
+    expect(fetchMock.mock.calls[0][1].headers["X-CSRFToken"]).toBe("csrf-token");
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ name: "manager", permission_codes: ["analytics_read"] });
   });
 
   it("sends user create, update and password reset payloads", async () => {
+    setCsrfToken("csrf-token");
     const adminUser = {
       id: 2,
       username: "worker",

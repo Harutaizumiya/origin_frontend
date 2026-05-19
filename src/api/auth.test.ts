@@ -1,27 +1,24 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearAuthToken, setAuthToken } from "./client";
+import { clearCsrfToken, setCsrfToken } from "./client";
 import { getCurrentUser, login, logout } from "./auth";
 
 describe("auth api", () => {
   afterEach(() => {
-    clearAuthToken();
+    clearCsrfToken();
     vi.unstubAllGlobals();
   });
 
-  it("logs in with username and password without sending a stale token", async () => {
-    setAuthToken("stale-token");
+  it("logs in with username and password using cookie credentials and csrf", async () => {
+    setCsrfToken("csrf-token");
     const response = {
-      token: "fresh-token",
-      user: {
-        id: 7,
-        username: "manager",
-        email: "manager@example.com",
-        first_name: "三",
-        last_name: "张",
-        is_staff: true,
-        is_superuser: true,
-        permissions: ["products_read"],
-      },
+      id: 7,
+      username: "manager",
+      email: "manager@example.com",
+      first_name: "三",
+      last_name: "张",
+      is_staff: true,
+      is_superuser: true,
+      permissions: ["products_read"],
     };
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -31,7 +28,6 @@ describe("auth api", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(login({ username: " manager ", password: "secret" })).resolves.toEqual({
-      token: "fresh-token",
       user: {
         id: 7,
         username: "manager",
@@ -49,11 +45,12 @@ describe("auth api", () => {
     const [url, options] = fetchMock.mock.calls[0];
     expect(String(url)).toContain("/auth/login");
     expect(options.headers.Authorization).toBeUndefined();
-    expect(JSON.parse(options.body)).toEqual({ username: "manager", password: "secret" });
+    expect(options.credentials).toBe("include");
+    expect(options.headers["X-CSRFToken"]).toBe("csrf-token");
+    expect(JSON.parse(options.body)).toEqual({ username: "manager", password: "secret", remember_me: false });
   });
 
-  it("loads the current user with the active token", async () => {
-    setAuthToken("fresh-token");
+  it("loads the current user with cookie credentials", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -86,10 +83,12 @@ describe("auth api", () => {
     });
 
     const [, options] = fetchMock.mock.calls[0];
-    expect(options.headers.Authorization).toBe("Bearer fresh-token");
+    expect(options.credentials).toBe("include");
+    expect(options.headers.Authorization).toBeUndefined();
   });
 
-  it("logs out with the captured token override", async () => {
+  it("logs out with cookie credentials and csrf", async () => {
+    setCsrfToken("csrf-token");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -97,11 +96,13 @@ describe("auth api", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(logout("captured-token")).resolves.toEqual({ revoked: true });
+    await expect(logout()).resolves.toEqual({ revoked: true });
 
     const [url, options] = fetchMock.mock.calls[0];
     expect(String(url)).toContain("/auth/logout");
     expect(options.method).toBe("POST");
-    expect(options.headers.Authorization).toBe("Bearer captured-token");
+    expect(options.credentials).toBe("include");
+    expect(options.headers.Authorization).toBeUndefined();
+    expect(options.headers["X-CSRFToken"]).toBe("csrf-token");
   });
 });

@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { clearCsrfToken, setCsrfToken } from "./client";
 import { createQrScan } from "./qrScans";
 
 describe("createQrScan", () => {
   afterEach(() => {
+    clearCsrfToken();
     vi.unstubAllGlobals();
   });
 
   it("posts the raw QR audit payload", async () => {
+    setCsrfToken("csrf-token");
     const response = {
       auditId: "scan_001",
       batchCode: "B202605120001",
@@ -37,6 +40,8 @@ describe("createQrScan", () => {
     const [url, options] = fetchMock.mock.calls[0];
     expect(String(url)).toContain("/qr-scans");
     expect(options.method).toBe("POST");
+    expect(options.credentials).toBe("include");
+    expect(options.headers["X-CSRFToken"]).toBe("csrf-token");
     expect(JSON.parse(options.body)).toEqual({
       qr: "OB1|B202605120001|N7K3Q9X2P4A8M6D2",
       source: "handheld",

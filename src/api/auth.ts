@@ -24,11 +24,7 @@ export interface AuthenticatedUserDto {
   permissions: string[];
 }
 
-interface LoginResponseDto {
-  token: string;
-  token_type?: string;
-  expires_in?: number;
-  expires_at?: string;
+interface LegacyLoginResponseDto {
   user: AuthenticatedUserDto;
 }
 
@@ -39,7 +35,6 @@ export interface LoginCredentials {
 }
 
 export interface LoginResult {
-  token: string;
   user: AuthenticatedUser;
 }
 
@@ -62,8 +57,12 @@ export function toAuthenticatedUser(dto: AuthenticatedUserDto): AuthenticatedUse
   };
 }
 
+function isLegacyLoginResponse(data: AuthenticatedUserDto | LegacyLoginResponseDto): data is LegacyLoginResponseDto {
+  return "user" in data && Boolean(data.user);
+}
+
 export async function login(credentials: LoginCredentials): Promise<LoginResult> {
-  const data = await requestJson<LoginResponseDto>("/auth/login", {
+  const data = await requestJson<LegacyLoginResponseDto | AuthenticatedUserDto>("/auth/login", {
     auth: false,
     method: "POST",
     body: {
@@ -72,18 +71,16 @@ export async function login(credentials: LoginCredentials): Promise<LoginResult>
       remember_me: credentials.remember === true,
     },
   });
+  const userDto = isLegacyLoginResponse(data) ? data.user : data;
 
   return {
-    token: data.token,
-    user: toAuthenticatedUser(data.user),
+    user: toAuthenticatedUser(userDto),
   };
 }
 
-export async function logout(token?: string | null) {
+export async function logout() {
   return requestJson<{ revoked: boolean }>("/auth/logout", {
-    auth: false,
     method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
 }
 

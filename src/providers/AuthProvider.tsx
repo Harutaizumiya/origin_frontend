@@ -2,20 +2,15 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ApiClientError,
-  clearAuthToken,
+  clearCsrfToken,
   getCurrentUser,
-  getAuthToken,
   login as loginRequest,
   logout as logoutRequest,
-  setAuthToken,
   setUnauthorizedHandler,
   type AuthenticatedUser,
   type LoginCredentials,
 } from "../api";
 import { logger } from "../lib/logger";
-
-const TOKEN_STORAGE_KEY = "origin.auth.token";
-const TOKEN_SESSION_KEY = "origin.auth.session-token";
 
 interface AuthContextValue {
   hasAnyPermission: (codes: string[]) => boolean;
@@ -26,39 +21,10 @@ interface AuthContextValue {
   login: (credentials: LoginCredentials) => Promise<AuthenticatedUser>;
   logout: () => Promise<void>;
   retryInitialize: () => Promise<void>;
-  token: string | null;
   user: AuthenticatedUser | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-function readStoredToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY) || window.sessionStorage.getItem(TOKEN_SESSION_KEY);
-}
-
-function writeStoredToken(token: string, remember = true) {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-    window.sessionStorage.removeItem(TOKEN_SESSION_KEY);
-
-    if (remember) {
-    window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
-    } else {
-      window.sessionStorage.setItem(TOKEN_SESSION_KEY, token);
-    }
-  }
-}
-
-function removeStoredToken() {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-    window.sessionStorage.removeItem(TOKEN_SESSION_KEY);
-  }
-}
 
 function getInitializationErrorMessage(error: unknown) {
   if (error instanceof ApiClientError && error.status === 401) {
@@ -70,7 +36,6 @@ function getInitializationErrorMessage(error: unknown) {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [initializationError, setInitializationError] = useState<string | null>(null);
@@ -78,31 +43,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearLocalSession = useCallback(() => {
     logger.debug("auth", "Local session cleared", {
       event: "auth_session_cleared",
-      hadToken: Boolean(getAuthToken()),
     });
-    removeStoredToken();
-    clearAuthToken();
-    setToken(null);
+    clearCsrfToken();
     setUser(null);
     setInitializationError(null);
     queryClient.clear();
   }, [queryClient]);
 
   const initialize = useCallback(async () => {
-    const storedToken = readStoredToken();
     setLoading(true);
     setInitializationError(null);
-
-    if (!storedToken) {
-      clearAuthToken();
-      setToken(null);
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-
-    setAuthToken(storedToken);
-    setToken(storedToken);
 
     try {
       const currentUser = await getCurrentUser();
@@ -139,9 +89,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (credentials: LoginCredentials) => {
       try {
         const result = await loginRequest(credentials);
-        writeStoredToken(result.token, credentials.remember !== false);
-        setAuthToken(result.token);
-        setToken(result.token);
         setUser(result.user);
         setInitializationError(null);
         queryClient.clear();
@@ -164,18 +111,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    const activeToken = token;
+    const hadUser = Boolean(user);
     clearLocalSession();
     logger.info("auth", "User logged out", {
       event: "auth_logout",
-      hadToken: Boolean(activeToken),
+      hadUser,
       userId: user?.id ?? null,
     });
 
-    if (activeToken) {
-      await logoutRequest(activeToken).catch(() => undefined);
+    if (hadUser) {
+      await logoutRequest().catch(() => undefined);
     }
-  }, [clearLocalSession, token, user?.id]);
+  }, [clearLocalSession, user]);
 
   const hasPermission = useCallback(
     (code: string) => {
@@ -204,15 +151,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasAnyPermission,
       hasPermission,
       initializationError,
-      isAuthenticated: Boolean(user && token),
+      isAuthenticated: Boolean(user),
       loading,
       login,
       logout,
       retryInitialize: initialize,
-      token,
       user,
     }),
-    [hasAnyPermission, hasPermission, initializationError, initialize, loading, login, logout, token, user],
+    [hasAnyPermission, hasPermission, initializationError, initialize, loading, login, logout, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

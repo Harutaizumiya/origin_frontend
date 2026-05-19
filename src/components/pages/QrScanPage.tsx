@@ -4,6 +4,7 @@ import { CheckCircle2, ClipboardPaste, Keyboard, LoaderCircle, QrCode, RotateCcw
 import { ApiClientError, createQrScan, type QrScanResultDto, type QrScanSource } from "../../api";
 import { cn } from "../../lib/utils";
 import { createClientScanId, getQrScanStatusMeta } from "../../lib/qrScan";
+import { getErrorDebugDetail, OperationFeedbackToast, type OperationFeedbackState } from "../common/OperationFeedbackToast";
 import { OperationAlert } from "../common/OperationAlert";
 
 interface RecentScanEntry extends QrScanResultDto {
@@ -64,6 +65,8 @@ export const QrScanPage: React.FC = () => {
   const [result, setResult] = useState<QrScanResultDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recentScans, setRecentScans] = useState<RecentScanEntry[]>([]);
+  const [feedback, setFeedback] = useState<OperationFeedbackState | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -103,17 +106,32 @@ export const QrScanPage: React.FC = () => {
         { ...scanResult, scannedAt, source },
         ...currentScans.slice(0, MAX_RECENT_SCANS - 1),
       ]);
+      setFeedback({
+        type: scanResult.status === "invalid" || scanResult.status === "revoked" || scanResult.status === "not_found" ? "warning" : "success",
+        title: "扫码审计已提交",
+        description: scanResult.message,
+      });
+      setFeedbackOpen(true);
       setQrInput("");
       window.setTimeout(() => inputRef.current?.focus(), 0);
     } catch (requestError) {
       setError(getErrorMessage(requestError));
+      setFeedback({
+        type: "error",
+        title: "扫码审计失败",
+        description: getErrorMessage(requestError),
+        debugDetail: getErrorDebugDetail(requestError),
+      });
+      setFeedbackOpen(true);
     } finally {
       setSubmitting(false);
     }
   }, [deviceId, qrInput, source]);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <>
+      <OperationFeedbackToast open={feedbackOpen} feedback={feedback} onClose={() => setFeedbackOpen(false)} />
+      <div className="mx-auto max-w-6xl">
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">扫码审计</h2>
@@ -311,6 +329,7 @@ export const QrScanPage: React.FC = () => {
           </section>
         </section>
       </div>
-    </div>
+      </div>
+    </>
   );
 };

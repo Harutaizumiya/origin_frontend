@@ -10,7 +10,7 @@ function getLoginErrorMessage(error: unknown) {
     if (error.status === 400 && error.message === "validation_error") {
       return "请输入正确的账号和密码。";
     }
-    if (error.status === 401 || error.message === "unauthorized") {
+    if (error.status === 401 || error.message === "unauthenticated") {
       return "账号或密码错误。";
     }
   }
@@ -30,7 +30,7 @@ export const LoginPage: React.FC = () => {
   const redirectTarget = useMemo(() => getRedirectTarget(location.state), [location.state]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forgotPasswordHintVisible, setForgotPasswordHintVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -145,11 +145,7 @@ export const LoginPage: React.FC = () => {
               />
             ) : null}
 
-            {error ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
-                {error}
-              </div>
-            ) : null}
+            {error ? <OperationAlert type="error" title="登录失败" description={error} showIcon /> : null}
 
             <button
               type="submit"
