@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { LockKeyhole, LoaderCircle, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ApiClientError } from "../../api";
+import { OperationAlert } from "../common/OperationAlert";
 import { useAuth } from "../../providers/AuthProvider";
 
 function getLoginErrorMessage(error: unknown) {
@@ -29,7 +30,9 @@ export const LoginPage: React.FC = () => {
   const redirectTarget = useMemo(() => getRedirectTarget(location.state), [location.state]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [forgotPasswordHintVisible, setForgotPasswordHintVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -44,7 +47,7 @@ export const LoginPage: React.FC = () => {
     setError(null);
 
     try {
-      await auth.login({ username, password });
+      await auth.login({ username, password, remember: rememberMe });
       navigate(redirectTarget, { replace: true });
     } catch (loginError) {
       setError(getLoginErrorMessage(loginError));
@@ -111,6 +114,36 @@ export const LoginPage: React.FC = () => {
                 />
               </div>
             </label>
+
+            <div className="flex items-center justify-between gap-4">
+              <label className="inline-flex cursor-pointer items-center gap-3 text-sm text-on-surface-variant">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                  className="h-4 w-4 rounded border border-surface-container text-primary focus:ring-2 focus:ring-primary/20"
+                />
+                <span className="font-medium text-on-surface">记住我</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setForgotPasswordHintVisible((current) => !current)}
+                className="text-sm font-semibold text-primary transition-colors hover:text-primary-container"
+              >
+                忘记密码？
+              </button>
+            </div>
+
+            {forgotPasswordHintVisible ? (
+              <OperationAlert
+                type="info"
+                title="忘记密码"
+                description="当前不提供独立找回页面，请联系系统管理员或后端管理员重置账号密码。"
+                showIcon
+                closable
+              />
+            ) : null}
 
             {error ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">

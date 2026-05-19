@@ -35,6 +35,7 @@ interface LoginResponseDto {
 export interface LoginCredentials {
   username: string;
   password: string;
+  remember?: boolean;
 }
 
 export interface LoginResult {
@@ -68,6 +69,7 @@ export async function login(credentials: LoginCredentials): Promise<LoginResult>
     body: {
       username: credentials.username.trim(),
       password: credentials.password,
+      remember_me: credentials.remember === true,
     },
   });
 

@@ -1,6 +1,7 @@
 import React from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../providers/AuthProvider";
 import { footerMenuRoutes, mainMenuRoutes, settingsRootRoute } from "../../routes/appRoutes";
 import { canAccessRoute } from "../../routes/routeAccess";
@@ -13,9 +14,17 @@ interface SidebarMenuProps {
 export const SidebarMenu: React.FC<SidebarMenuProps> = ({ collapsed }) => {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const visibleMainRoutes = mainMenuRoutes.filter((route) => canAccessRoute(user, route));
   const visibleSettingsRoutes = footerMenuRoutes.filter((route) => canAccessRoute(user, route));
   const settingsActive = location.pathname.startsWith("/settings");
+  const [settingsExpanded, setSettingsExpanded] = React.useState(settingsActive);
+
+  React.useEffect(() => {
+    if (settingsActive) {
+      setSettingsExpanded(true);
+    }
+  }, [settingsActive]);
 
   return (
     <nav className="flex flex-1 flex-col">
@@ -31,15 +40,41 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({ collapsed }) => {
           label={settingsRootRoute.label}
           to={settingsRootRoute.path}
           active={settingsActive}
-          trailingIcon={collapsed ? undefined : <ChevronDown size={14} className="text-on-surface-variant" />}
+          onClick={
+            collapsed
+              ? () => navigate(settingsRootRoute.path)
+              : () => setSettingsExpanded((current) => !current)
+          }
+          trailingIcon={
+            collapsed ? undefined : (
+              <motion.span
+                initial={false}
+                animate={{ rotate: settingsExpanded ? 0 : -90 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className="inline-flex"
+              >
+                <ChevronDown size={14} className="text-on-surface-variant" />
+              </motion.span>
+            )
+          }
         />
-        {!collapsed ? (
-          <div className="ml-7 space-y-1 border-l border-surface-container pl-3">
-            {visibleSettingsRoutes.map((route) => (
-              <SidebarItem key={route.path} collapsed={false} compact icon={route.icon} label={route.label} to={route.path} />
-            ))}
-          </div>
-        ) : null}
+        <AnimatePresence initial={false}>
+          {!collapsed && settingsExpanded ? (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="ml-7 space-y-1 border-l border-surface-container pl-3 pt-1">
+                {visibleSettingsRoutes.map((route) => (
+                  <SidebarItem key={route.path} collapsed={false} compact icon={route.icon} label={route.label} to={route.path} />
+                ))}
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
     </nav>
   );

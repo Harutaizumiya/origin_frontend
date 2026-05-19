@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LoaderCircle, Pencil, RotateCcw, Save, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { LoaderCircle, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import {
   ApiClientError,
   createRole,
@@ -96,6 +97,26 @@ function PageTitle({ title, description }: { title: string; description: string 
   );
 }
 
+function PageTitleWithAction({
+  action,
+  description,
+  title,
+}: {
+  action: React.ReactNode;
+  description: string;
+  title: string;
+}) {
+  return (
+    <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <div>
+        <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">{title}</h2>
+        <p className="mt-1 text-on-surface-variant">{description}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
 function LoadingBlock({ label }: { label: string }) {
   return (
     <div className="flex items-center justify-center gap-3 rounded-3xl border border-surface-container/10 bg-surface-container-lowest px-6 py-12 text-sm font-semibold text-on-surface-variant ambient-shadow">
@@ -130,7 +151,7 @@ function PermissionChecklist({
               <label
                 key={permission.code}
                 className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-2xl border border-surface-container bg-surface-container-lowest px-4 py-3",
+                  "flex cursor-pointer items-start gap-3 rounded-2xl border border-surface-container bg-surface-container-lowest px-4 py-3 transition-colors hover:border-primary/20",
                   disabled && "cursor-not-allowed opacity-60",
                 )}
               >
@@ -284,6 +305,7 @@ export const RoleManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { permissionsQuery, rolesQuery } = useAdminReferenceData();
   const [form, setForm] = useState<RoleFormState>(EMPTY_ROLE_FORM);
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -295,6 +317,25 @@ export const RoleManagementPage: React.FC = () => {
   const resetForm = () => {
     setForm(EMPTY_ROLE_FORM);
     setFeedback(null);
+  };
+
+  const openCreateRole = () => {
+    resetForm();
+    setIsRoleModalOpen(true);
+  };
+
+  const editRole = (role: AuthRole) => {
+    setForm({ id: role.id, name: role.name, permissionCodes: role.permissions });
+    setFeedback(null);
+    setIsRoleModalOpen(true);
+  };
+
+  const closeRoleModal = () => {
+    if (submitting) {
+      return;
+    }
+    setIsRoleModalOpen(false);
+    resetForm();
   };
 
   const submitRole = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -314,7 +355,8 @@ export const RoleManagementPage: React.FC = () => {
       }
       await queryClient.invalidateQueries({ queryKey: queryKeys.authManagement.roles() });
       await queryClient.invalidateQueries({ queryKey: queryKeys.authManagement.users() });
-      resetForm();
+      setIsRoleModalOpen(false);
+      setForm(EMPTY_ROLE_FORM);
       setFeedback("角色已保存。");
     } catch (error) {
       setFeedback(getErrorMessage(error));
@@ -347,85 +389,344 @@ export const RoleManagementPage: React.FC = () => {
 
   return (
     <div>
-      <PageTitle title="角色管理" description="创建 Django Group 角色，并为角色整体配置业务权限。" />
+      <PageTitleWithAction
+        title="角色管理"
+        description="创建 Django Group 角色，并为角色整体配置业务权限。"
+        action={
+          <button
+            type="button"
+            onClick={openCreateRole}
+            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
+          >
+            <Plus size={18} />
+            新增角色
+          </button>
+        }
+      />
       {loading ? <LoadingBlock label="正在加载角色与权限" /> : null}
       {error ? <ErrorBlock message={getErrorMessage(error)} /> : null}
       {!loading && !error ? (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <>
           <section className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 ambient-shadow">
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-5">
               <h3 className="font-headline text-xl font-bold text-on-surface">角色列表</h3>
-              <span className="text-sm font-semibold text-on-surface-variant">{roles.length} 个角色</span>
+              <p className="mt-1 text-sm text-on-surface-variant">{roles.length} 个角色</p>
             </div>
-            <div className="space-y-3">
-              {roles.map((role) => (
-                <div key={role.id} className="flex flex-col gap-4 rounded-2xl border border-surface-container bg-surface-container-low p-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="font-bold text-on-surface">{role.name}</div>
-                    <div className="mt-1 text-sm text-on-surface-variant">{role.permissions.length} 项权限</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setForm({ id: role.id, name: role.name, permissionCodes: role.permissions })}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-surface-container bg-white text-on-surface-variant hover:text-primary"
-                      aria-label={`编辑 ${role.name}`}
-                    >
-                      <Pencil size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void removeRole(role)}
-                      disabled={deletingId === role.id}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-red-200 bg-white text-red-500 hover:bg-red-50 disabled:opacity-50"
-                      aria-label={`删除 ${role.name}`}
-                    >
-                      {deletingId === role.id ? <LoaderCircle size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                    </button>
-                  </div>
-                </div>
-              ))}
+            {!isRoleModalOpen && feedback ? (
+              <div className="mb-5 rounded-2xl bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface-variant">{feedback}</div>
+            ) : null}
+            <div className="overflow-hidden rounded-2xl border border-surface-container">
+              <table className="w-full text-left">
+                <thead className="bg-surface-container-low text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                  <tr>
+                    <th className="px-5 py-4">角色</th>
+                    <th className="px-5 py-4">权限数量</th>
+                    <th className="px-5 py-4 text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-container-low">
+                  {roles.map((role) => (
+                    <tr key={role.id} className="hover:bg-surface-container-low/40">
+                      <td className="px-5 py-4">
+                        <div className="font-bold text-on-surface">{role.name}</div>
+                        <div className="mt-1 max-w-2xl truncate text-sm text-on-surface-variant">
+                          {role.permissions.length > 0 ? role.permissions.join("、") : "未配置权限"}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-on-surface-variant">{role.permissions.length} 项</td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => editRole(role)}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-surface-container bg-white text-on-surface-variant hover:text-primary"
+                            aria-label={`编辑 ${role.name}`}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void removeRole(role)}
+                            disabled={deletingId === role.id}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-red-200 bg-white text-red-500 hover:bg-red-50 disabled:opacity-50"
+                            aria-label={`删除 ${role.name}`}
+                          >
+                            {deletingId === role.id ? <LoaderCircle size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
-          <form onSubmit={submitRole} className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 ambient-shadow">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="font-headline text-xl font-bold text-on-surface">{form.id ? "编辑角色" : "新增角色"}</h3>
-              <button type="button" onClick={resetForm} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-surface-container text-on-surface-variant">
-                <RotateCcw size={15} />
-              </button>
-            </div>
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-on-surface">角色名称</span>
-              <input
-                required
-                value={form.name}
-                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                className="w-full rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm outline-none focus:border-primary"
-                placeholder="warehouse_operator"
-              />
-            </label>
-            <div className="mt-5">
-              <PermissionChecklist
-                groups={groups}
-                selected={form.permissionCodes}
-                onToggle={(code) => setForm((current) => ({ ...current, permissionCodes: toggleString(current.permissionCodes, code) }))}
-              />
-            </div>
-            {feedback ? <div className="mt-4 rounded-2xl bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface-variant">{feedback}</div> : null}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-md disabled:opacity-60"
-            >
-              {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}
-              保存角色
-            </button>
-          </form>
-        </div>
+          <RoleFormModal
+            feedback={feedback}
+            form={form}
+            groups={groups}
+            open={isRoleModalOpen}
+            submitting={submitting}
+            onChange={(updater) => {
+              setForm(updater);
+              setFeedback(null);
+            }}
+            onClose={closeRoleModal}
+            onSubmit={submitRole}
+          />
+        </>
       ) : null}
     </div>
   );
 };
+
+function RoleFormModal({
+  feedback,
+  form,
+  groups,
+  open,
+  submitting,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  feedback: string | null;
+  form: RoleFormState;
+  groups: PermissionGroup[];
+  open: boolean;
+  submitting: boolean;
+  onChange: (updater: (current: RoleFormState) => RoleFormState) => void;
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <AnimatePresence>
+      {open ? (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[3px]"
+            onClick={submitting ? undefined : onClose}
+          />
+          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8">
+            <motion.form
+              initial={{ opacity: 0, scale: 0.96, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 24 }}
+              transition={{ type: "spring", stiffness: 280, damping: 26 }}
+              onSubmit={onSubmit}
+              className="ambient-shadow pointer-events-auto flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-surface-container-high px-8 py-6">
+                <div className="min-w-0">
+                  <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">{form.id ? "编辑角色" : "新增角色"}</h3>
+                  <p className="mt-1 text-sm text-on-surface-variant">设置角色名称，并整体配置该角色拥有的业务权限。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={submitting}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-surface-container bg-white text-on-surface-variant transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="关闭角色表单"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-8 py-7">
+                <TextInput label="角色名称" value={form.name} onChange={(value) => onChange((current) => ({ ...current, name: value }))} />
+                <div className="mt-6">
+                  <div className="mb-2 text-sm font-semibold text-on-surface">角色权限</div>
+                  <PermissionChecklist
+                    groups={groups}
+                    selected={form.permissionCodes}
+                    onToggle={(code) => onChange((current) => ({ ...current, permissionCodes: toggleString(current.permissionCodes, code) }))}
+                  />
+                </div>
+                {feedback ? <div className="mt-5 rounded-2xl bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface-variant">{feedback}</div> : null}
+              </div>
+              <div className="flex flex-col-reverse gap-3 border-t border-surface-container-high bg-white/80 px-8 py-6 backdrop-blur-sm sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={submitting}
+                  className="rounded-2xl border border-surface-container px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-md transition-colors hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}
+                  保存角色
+                </button>
+              </div>
+            </motion.form>
+          </div>
+        </>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+function UserFormModal({
+  feedback,
+  form,
+  groups,
+  open,
+  passwordResetValue,
+  resettingPassword,
+  roles,
+  selectedUser,
+  submitting,
+  onChange,
+  onClose,
+  onPasswordReset,
+  onPasswordResetValueChange,
+  onSubmit,
+}: {
+  feedback: string | null;
+  form: UserFormState;
+  groups: PermissionGroup[];
+  open: boolean;
+  passwordResetValue: string;
+  resettingPassword: boolean;
+  roles: AuthRole[];
+  selectedUser: AuthAdminUser | null;
+  submitting: boolean;
+  onChange: (updater: (current: UserFormState) => UserFormState) => void;
+  onClose: () => void;
+  onPasswordReset: () => void;
+  onPasswordResetValueChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <AnimatePresence>
+      {open ? (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[3px]"
+            onClick={submitting || resettingPassword ? undefined : onClose}
+          />
+          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8">
+            <motion.form
+              initial={{ opacity: 0, scale: 0.96, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 24 }}
+              transition={{ type: "spring", stiffness: 280, damping: 26 }}
+              onSubmit={onSubmit}
+              className="ambient-shadow pointer-events-auto flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-surface-container-high px-8 py-6">
+                <div className="min-w-0">
+                  <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">{form.id ? "编辑用户" : "新增用户"}</h3>
+                  <p className="mt-1 text-sm text-on-surface-variant">配置用户资料、启用状态、角色和直接权限。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={submitting || resettingPassword}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-surface-container bg-white text-on-surface-variant transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="关闭用户表单"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-8 py-7">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <TextInput label="用户名" value={form.username} disabled={Boolean(form.id)} onChange={(value) => onChange((current) => ({ ...current, username: value }))} />
+                  {!form.id ? (
+                    <TextInput label="初始密码" type="password" value={form.password} onChange={(value) => onChange((current) => ({ ...current, password: value }))} />
+                  ) : null}
+                  <TextInput label="邮箱" value={form.email} onChange={(value) => onChange((current) => ({ ...current, email: value }))} />
+                  <TextInput label="姓" value={form.lastName} onChange={(value) => onChange((current) => ({ ...current, lastName: value }))} />
+                  <TextInput label="名" value={form.firstName} onChange={(value) => onChange((current) => ({ ...current, firstName: value }))} />
+                </div>
+                <div className="mt-6 grid gap-3 md:grid-cols-2">
+                  <ToggleLabel label="启用账号" checked={form.isActive} onChange={(checked) => onChange((current) => ({ ...current, isActive: checked }))} />
+                  <ToggleLabel label="Staff 用户" checked={form.isStaff} onChange={(checked) => onChange((current) => ({ ...current, isStaff: checked }))} />
+                </div>
+                <div className="mt-6">
+                  <div className="mb-2 text-sm font-semibold text-on-surface">角色</div>
+                  <div className="grid gap-2 rounded-2xl border border-surface-container bg-surface-container-low p-4 md:grid-cols-2">
+                    {roles.map((role) => (
+                      <label key={role.id} className="flex items-center gap-3 rounded-xl px-2 py-1.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-lowest">
+                        <input
+                          type="checkbox"
+                          checked={form.groupIds.includes(role.id)}
+                          onChange={() => onChange((current) => ({ ...current, groupIds: toggleNumber(current.groupIds, role.id) }))}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        {role.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <div className="mb-2 text-sm font-semibold text-on-surface">直接权限</div>
+                  <PermissionChecklist
+                    groups={groups}
+                    selected={form.permissionCodes}
+                    onToggle={(code) => onChange((current) => ({ ...current, permissionCodes: toggleString(current.permissionCodes, code) }))}
+                  />
+                </div>
+                {selectedUser ? (
+                  <div className="mt-6 rounded-2xl border border-surface-container bg-surface-container-low p-5">
+                    <div className="mb-3 text-sm font-bold text-on-surface">重置密码</div>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <input
+                        type="password"
+                        value={passwordResetValue}
+                        onChange={(event) => onPasswordResetValueChange(event.target.value)}
+                        className="min-w-0 flex-1 rounded-2xl border border-surface-container bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                        placeholder="输入新密码"
+                      />
+                      <button
+                        type="button"
+                        onClick={onPasswordReset}
+                        disabled={resettingPassword}
+                        className="inline-flex items-center justify-center rounded-2xl bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container disabled:opacity-60"
+                      >
+                        {resettingPassword ? "处理中" : "重置"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {feedback ? <div className="mt-5 rounded-2xl bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface-variant">{feedback}</div> : null}
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-surface-container-high bg-white/80 px-8 py-6 backdrop-blur-sm sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={submitting || resettingPassword}
+                  className="rounded-2xl border border-surface-container px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-md transition-colors hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}
+                  保存用户
+                </button>
+              </div>
+            </motion.form>
+          </div>
+        </>
+      ) : null}
+    </AnimatePresence>
+  );
+}
 
 export const UserManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -435,6 +736,7 @@ export const UserManagementPage: React.FC = () => {
     queryFn: listUsers,
   });
   const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [passwordResetValue, setPasswordResetValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
@@ -453,6 +755,19 @@ export const UserManagementPage: React.FC = () => {
     setFeedback(null);
   };
 
+  const closeUserModal = () => {
+    if (submitting || resettingPassword) {
+      return;
+    }
+    setIsUserModalOpen(false);
+    resetForm();
+  };
+
+  const openCreateUser = () => {
+    resetForm();
+    setIsUserModalOpen(true);
+  };
+
   const editUser = (user: AuthAdminUser) => {
     setForm({
       id: user.id,
@@ -468,6 +783,7 @@ export const UserManagementPage: React.FC = () => {
     });
     setPasswordResetValue("");
     setFeedback(null);
+    setIsUserModalOpen(true);
   };
 
   const submitUser = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -508,7 +824,9 @@ export const UserManagementPage: React.FC = () => {
         });
       }
       await queryClient.invalidateQueries({ queryKey: queryKeys.authManagement.users() });
-      resetForm();
+      setIsUserModalOpen(false);
+      setForm(EMPTY_USER_FORM);
+      setPasswordResetValue("");
       setFeedback("用户已保存。");
     } catch (error) {
       setFeedback(getErrorMessage(error));
@@ -538,16 +856,32 @@ export const UserManagementPage: React.FC = () => {
 
   return (
     <div>
-      <PageTitle title="用户管理" description="创建用户、分配角色和直接权限；超级管理员身份不能通过该接口授予。" />
+      <PageTitleWithAction
+        title="用户管理"
+        description="创建用户、分配角色和直接权限；超级管理员身份不能通过该接口授予。"
+        action={
+          <button
+            type="button"
+            onClick={openCreateUser}
+            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
+          >
+            <Plus size={18} />
+            新增用户
+          </button>
+        }
+      />
       {loading ? <LoadingBlock label="正在加载用户、角色与权限" /> : null}
       {error ? <ErrorBlock message={getErrorMessage(error)} /> : null}
       {!loading && !error ? (
-        <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_460px]">
+        <>
           <section className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 ambient-shadow">
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-5">
               <h3 className="font-headline text-xl font-bold text-on-surface">用户列表</h3>
-              <span className="text-sm font-semibold text-on-surface-variant">{users.length} 个用户</span>
+              <p className="mt-1 text-sm text-on-surface-variant">{users.length} 个用户</p>
             </div>
+            {!isUserModalOpen && feedback ? (
+              <div className="mb-5 rounded-2xl bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface-variant">{feedback}</div>
+            ) : null}
             <div className="overflow-hidden rounded-2xl border border-surface-container">
               <table className="w-full text-left">
                 <thead className="bg-surface-container-low text-xs font-bold uppercase tracking-wider text-on-surface-variant">
@@ -587,83 +921,26 @@ export const UserManagementPage: React.FC = () => {
               </table>
             </div>
           </section>
-          <form onSubmit={submitUser} className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 ambient-shadow">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="font-headline text-xl font-bold text-on-surface">{form.id ? "编辑用户" : "新增用户"}</h3>
-              <button type="button" onClick={resetForm} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-surface-container text-on-surface-variant">
-                <RotateCcw size={15} />
-              </button>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-1">
-              <TextInput label="用户名" value={form.username} disabled={Boolean(form.id)} onChange={(value) => setForm((current) => ({ ...current, username: value }))} />
-              {!form.id ? (
-                <TextInput label="初始密码" type="password" value={form.password} onChange={(value) => setForm((current) => ({ ...current, password: value }))} />
-              ) : null}
-              <TextInput label="邮箱" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} />
-              <TextInput label="姓" value={form.lastName} onChange={(value) => setForm((current) => ({ ...current, lastName: value }))} />
-              <TextInput label="名" value={form.firstName} onChange={(value) => setForm((current) => ({ ...current, firstName: value }))} />
-            </div>
-            <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-1">
-              <ToggleLabel label="启用账号" checked={form.isActive} onChange={(checked) => setForm((current) => ({ ...current, isActive: checked }))} />
-              <ToggleLabel label="Staff 用户" checked={form.isStaff} onChange={(checked) => setForm((current) => ({ ...current, isStaff: checked }))} />
-            </div>
-            <div className="mt-5">
-              <div className="mb-2 text-sm font-semibold text-on-surface">角色</div>
-              <div className="grid gap-2 rounded-2xl border border-surface-container bg-surface-container-low p-4">
-                {roles.map((role) => (
-                  <label key={role.id} className="flex items-center gap-3 text-sm font-semibold text-on-surface">
-                    <input
-                      type="checkbox"
-                      checked={form.groupIds.includes(role.id)}
-                      onChange={() => setForm((current) => ({ ...current, groupIds: toggleNumber(current.groupIds, role.id) }))}
-                      className="h-4 w-4 accent-primary"
-                    />
-                    {role.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="mt-5">
-              <div className="mb-2 text-sm font-semibold text-on-surface">直接权限</div>
-              <PermissionChecklist
-                groups={groups}
-                selected={form.permissionCodes}
-                onToggle={(code) => setForm((current) => ({ ...current, permissionCodes: toggleString(current.permissionCodes, code) }))}
-              />
-            </div>
-            {selectedUser ? (
-              <div className="mt-5 rounded-2xl border border-surface-container bg-surface-container-low p-4">
-                <div className="mb-2 text-sm font-bold text-on-surface">重置密码</div>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={passwordResetValue}
-                    onChange={(event) => setPasswordResetValue(event.target.value)}
-                    className="min-w-0 flex-1 rounded-xl border border-surface-container bg-white px-3 py-2 text-sm outline-none"
-                    placeholder="输入新密码"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void resetPassword()}
-                    disabled={resettingPassword}
-                    className="rounded-xl bg-surface-container-high px-4 py-2 text-sm font-bold text-on-surface disabled:opacity-60"
-                  >
-                    {resettingPassword ? "处理中" : "重置"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            {feedback ? <div className="mt-4 rounded-2xl bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface-variant">{feedback}</div> : null}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-md disabled:opacity-60"
-            >
-              {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}
-              保存用户
-            </button>
-          </form>
-        </div>
+          <UserFormModal
+            feedback={feedback}
+            form={form}
+            groups={groups}
+            open={isUserModalOpen}
+            passwordResetValue={passwordResetValue}
+            resettingPassword={resettingPassword}
+            roles={roles}
+            selectedUser={selectedUser}
+            submitting={submitting}
+            onChange={(updater) => {
+              setForm(updater);
+              setFeedback(null);
+            }}
+            onClose={closeUserModal}
+            onPasswordReset={() => void resetPassword()}
+            onPasswordResetValueChange={setPasswordResetValue}
+            onSubmit={submitUser}
+          />
+        </>
       ) : null}
     </div>
   );
@@ -690,7 +967,7 @@ function TextInput({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
       />
     </label>
   );
@@ -698,7 +975,7 @@ function TextInput({
 
 function ToggleLabel({ checked, label, onChange }: { checked: boolean; label: string; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex items-center justify-between rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface">
+    <label className="flex items-center justify-between rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-high">
       {label}
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4 accent-primary" />
     </label>

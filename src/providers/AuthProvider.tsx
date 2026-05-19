@@ -15,6 +15,7 @@ import {
 import { logger } from "../lib/logger";
 
 const TOKEN_STORAGE_KEY = "origin.auth.token";
+const TOKEN_SESSION_KEY = "origin.auth.session-token";
 
 interface AuthContextValue {
   hasAnyPermission: (codes: string[]) => boolean;
@@ -36,18 +37,26 @@ function readStoredToken() {
     return null;
   }
 
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+  return window.localStorage.getItem(TOKEN_STORAGE_KEY) || window.sessionStorage.getItem(TOKEN_SESSION_KEY);
 }
 
-function writeStoredToken(token: string) {
+function writeStoredToken(token: string, remember = true) {
   if (typeof window !== "undefined") {
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    window.sessionStorage.removeItem(TOKEN_SESSION_KEY);
+
+    if (remember) {
     window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      window.sessionStorage.setItem(TOKEN_SESSION_KEY, token);
+    }
   }
 }
 
 function removeStoredToken() {
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    window.sessionStorage.removeItem(TOKEN_SESSION_KEY);
   }
 }
 
@@ -130,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (credentials: LoginCredentials) => {
       try {
         const result = await loginRequest(credentials);
-        writeStoredToken(result.token);
+        writeStoredToken(result.token, credentials.remember !== false);
         setAuthToken(result.token);
         setToken(result.token);
         setUser(result.user);
