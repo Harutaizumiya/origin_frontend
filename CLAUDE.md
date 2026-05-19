@@ -10,6 +10,7 @@ npm run dev:frontend     # Start Vite dev server only (port 3000)
 npm run dev:debug        # Start both with Vite --mode debug
 npm run build            # Production build (vite build)
 npm run lint             # Type-check only (tsc --noEmit)
+npm run test             # Run Vitest tests
 npm run preview          # Preview production build
 npm run clean            # Remove dist/
 ```
@@ -18,44 +19,72 @@ npm run clean            # Remove dist/
 
 ## Architecture
 
-**Stack**: React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4 (via `@tailwindcss/vite`), React Router 7, Recharts 3, Motion (Framer Motion successor, `motion/react`)
+**Stack**: React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4 (via `@tailwindcss/vite`), React Router 7, TanStack React Query 5, Recharts 3, Motion 12 (Framer Motion successor), Lucide React
 
-**Backend**: Django REST API at `http://127.0.0.1:8000/api`. All API calls flow through the generic `requestJson<T>()` client (`src/api/client.ts`), which expects `{ code: 0, message: "...", data: ... }` response shape and unwraps `data`.
+**Backend**: Django REST API at `http://127.0.0.1:8000/api`. All API calls flow through `requestJson<T>()` (`src/api/client.ts`), which expects `{ code: 0, message: "...", data: ... }` response shape and unwraps `data`.
+
+**Auth**: Cookie-based session auth via Django sessions. `client.ts` manages CSRF tokens (`/auth/csrf`, `X-CSRFToken` header on state-changing requests, `credentials: "include"`). `AuthProvider` initializes session on mount via `GET /auth/me`, handles 401 auto-logout, and exposes `hasPermission()` for route guards.
+
+**State management**: TanStack React Query for server state (5min staleTime, 30min gcTime). React context for auth (`AuthProvider`) and layout (`LayoutContext`). No global state library.
 
 ### Routing
 
-React Router 7 with `BrowserRouter`. All pages sit inside `MainLayout` (sidebar + header + content).
+React Router 7 with `BrowserRouter`. All pages sit inside `MainLayout` (sidebar + header + content). Routes are lazy-loaded via `React.lazy()`.
 
-| Path | Page |
-|------|------|
-| `/` | DashboardPage |
-| `/products` | ProductManagementPage |
-| `/inventory-status` | InventoryStatusPage |
-| `/analysis` | AnalyticsPage |
-| `/settings` | SettingsPage |
+| Path | Page | Permission |
+|------|------|------------|
+| `/` | DashboardPage | `dashboard_read` |
+| `/products` | ProductManagementPage | `products_read` |
+| `/inventory-status` | InventoryStatusPage | `batches_read` |
+| `/loss-report` | LossReportPage | `products_read` + `batches_read` (all) |
+| `/qr-scan` | QrScanPage | `qr_scans_create` |
+| `/analysis` | AnalyticsPage | `analytics_read` |
+| `/settings/profile` | SettingsPage (profile tab) | authenticated |
+| `/settings/users` | SettingsPage (user mgmt tab) | superuser |
+| `/settings/roles` | SettingsPage (role mgmt tab) | superuser |
+| `/settings/permissions` | SettingsPage (permission dir tab) | superuser |
+
+Route guard components in `src/components/auth/ProtectedRoute.tsx`:
+- `ProtectedRoute` — redirects unauthenticated users to `/login`
+- `PublicOnlyRoute` — redirects authenticated users away from `/login`
+- `RouteAccessGuard` — checks `requiredPermissions` (mode: `"any"` or `"all"`) and `requiresSuperuser`
 
 ### API layer (`src/api/`)
 
-Each API file exports DTO types and functions that call `requestJson<T>()`:
+Each file exports DTO types and functions that call `requestJson<T>()`. Barrel re-exported via `index.ts`.
 
-- **`client.ts`** — `requestJson<T>(path, options)` builds URL from `VITE_API_BASE_URL`, attaches `VITE_API_TOKEN` as Bearer auth, handles JSON serialization, and throws `ApiClientError` on non-ok responses. Always expects `{ data: T }` envelope.
-- **`products.ts`** — Full CRUD for products + category listing. Converts DTOs to UI `Product` type via `toProduct()`. Posts to `/products`, patches via `/products/:id`.
-- **`batches.ts`** — Batch listing, creation, expiry alerts. Posts to `/batches`.
-- **`inventory.ts`** — Pure functions that transform `BatchDto` into UI-facing types (`InventoryRecord`, `InventoryBatchDetail`, `InventoryRelatedBatch`). Shelf-life math (`getShelfLifeMetricsFromDates`, `getShelfLifeMetricsFromBatch`). Temperature metadata derived from Chinese location keywords.
-- **`types.ts`** — Shared response/pagination types and `ApiClientError` class.
+- **`client.ts`** — `requestJson<T>(path, options)` builds URL from `VITE_API_BASE_URL`, manages CSRF token lifecycle, sends `credentials: "include"`, handles JSON serialization, throws `ApiClientError` on non-ok responses. On 401 fires `unauthorizedHandler`. Integrated with `logger.ts`.
+- **`types.ts`** — `ApiSuccessResponse`, `ApiErrorResponse`, `ApiPagination`, `ApiClientError` class.
+- **`queryKeys.ts`** — TanStack Query key factory (`dashboard`, `analytics`, `products`, `batches`, `operations`, `authManagement`).
+- **`auth.ts`** — `login()` (with `remember_me`), `logout()`, `getCurrentUser()`. DTO → `AuthenticatedUser` type (id, username, email, permissions[], isStaff, isSuperuser, displayName, roleLabel).
+- **`authManagement.ts`** — Admin CRUD for users, roles, permissions against `/auth/users`, `/auth/roles`, `/auth/permissions`.
+- **`products.ts`** — Full CRUD for products + category listing. `toProduct()` converts DTO → UI `Product`.
+- **`batches.ts`** — Batch listing/creation, per-product batches, batch operations (add/deduct/loss/revert), label payload. Types: `BatchDto`, `BatchOperationDto`, `BatchLabelPayloadDto`.
+- **`inventory.ts`** — Pure functions transforming `BatchDto` → UI types (`InventoryRecord`, `InventoryBatchDetail`, `InventoryRelatedBatch`). Shelf-life math (`getShelfLifeMetricsFromDates/Batch`). Temperature metadata derived from Chinese location keywords (冻=-18°C, 冷=4°C, else 22°C).
+- **`dashboard.ts`** — `GET /dashboard/overview` → `DashboardStat[]`, `TrendDataPoint[]`, `Category[]`, `UrgentItem[]`.
+- **`analytics.ts`** — `GET /analytics/summary?range=` (1m/3m/6m/12m) → stock loss trend, category operations, risk ranking.
+- **`qrScans.ts`** — `POST /qr-scans` (single + bulk). QR source types: `web_camera | mobile_camera | handheld`. Statuses: `valid | near_expiry | expired | invalid | revoked | not_found`.
 
 ### Component conventions
 
-- **UI = Chinese**: All user-facing strings, labels, placeholders, and aria-labels are in Chinese.
-- **Styling**: Tailwind utility classes via `cn()` helper (`src/lib/utils.ts` — clsx + tailwind-merge). Custom theme tokens (colors, fonts) defined in `src/index.css` via `@theme` directive. The `.ambient-shadow` utility class is used for card/section elevations.
-- **Animation**: Sidebar uses CSS transitions with `cubic-bezier(0.22, 1, 0.36, 1)` easing (500ms). Modals use Motion (Spring) for enter/exit with backdrop blur overlay.
-- **Modals**: Pattern is `AnimatePresence` + Motion backdrop + Motion panel, with `pointer-events-none` outer and `pointer-events-auto` inner to enable click-outside-to-close. Submitting state disables close.
-- **Data loading**: Pages fetch on mount with an `isLoading` flag and show centered spinner states. Errors are caught and displayed as red banners with Chinese error messages. `ApiClientError.message` is mapped to Chinese via per-page `getErrorMessage()` helpers.
-
-### Sidebar layout
-
-Fixed-position sidebar with animated width (80px collapsed / 256px expanded). Content area animates `margin-left` in matching fashion. `LayoutContext` provides `sidebarCollapsed` and `isSidebarAnimating` to children.
+- **UI = Chinese**: All user-facing strings, labels, placeholders, aria-labels, and error messages are in Chinese.
+- **Styling**: Tailwind utility classes via `cn()` helper (`src/lib/utils.ts` — clsx + tailwind-merge). Custom theme tokens (colors, fonts) in `src/index.css` via `@theme` directive. `.ambient-shadow` for card/section elevations, `.glass-header` for header backdrop.
+- **Sidebar**: Fixed-position with animated width (80px collapsed / 256px expanded). Content area animates `margin-left` in sync via `LayoutContext`. Uses `cubic-bezier(0.22, 1, 0.36, 1)` easing (500ms). `LayoutContext` provides `sidebarCollapsed` and `isSidebarAnimating` via two separate contexts (`SidebarCollapsedContext`, `SidebarAnimatingContext`) to minimize re-renders.
+- **Modals**: Pattern is `AnimatePresence` + Motion backdrop + Motion panel, with `pointer-events-none` outer and `pointer-events-auto` inner for click-outside-to-close. Submitting state disables close.
+- **Data loading**: Pages fetch on mount with an `isLoading` flag → centered spinner. Errors caught and displayed as red banners with Chinese messages via per-page `getErrorMessage()` helpers. Empty states shown when no data.
+- **Auth wiring**: Pages use `useAuth()` for permission checks. API calls that 401 trigger automatic logout via global `unauthorizedHandler`.
 
 ### Product ↔ Inventory relationship
 
-Products are master data (barcode, name, manufacturer, shelf life). Batches belong to products and track individual received lots with quantities, manufacture/expiry dates. The inventory page merges batch data with product metadata via `mergeInventoryRecord()` to enrich category/location info.
+Products are master data (barcode, name, manufacturer, shelf life). Batches belong to products and track individual received lots with quantities, manufacture/expiry dates. The inventory page merges batch data with product metadata via `mergeInventoryRecord()` to enrich category/location info. Batch operations track inventory movements (入库/出库/报损) with revert capability.
+
+### Key libraries (`src/lib/`)
+
+- **`logger.ts`** — Structured client-side logger with scopes, levels (debug/info/warn/error), localStorage persistence (200 entries), subscription mechanism. Configurable via `VITE_LOG_ENABLED`, `VITE_LOG_LEVEL`, `VITE_LOG_MAX_ENTRIES`. Sensitive key redaction. Used by `client.ts`, `AuthProvider`, and Header's log viewer.
+- **`labelPrinter.ts`** — Multi-protocol label printing (TSPL/ZPL/ESC/POS) with WebUSB/WebSerial/Browser transports. QR code generation via `qrcode` library. Chinese font size calculation.
+- **`qrScan.ts`** — Client-side scan ID generation for idempotency. Status metadata mapping (backend code → Chinese label + color).
+
+### Providers (`src/providers/`)
+
+- **`AuthProvider.tsx`** — Auth context: `user`, `loading`, `isAuthenticated`, `login()`, `logout()`, `hasPermission()`, `hasAnyPermission()`. Sets global 401 handler. Logs all auth events.
+- **`QueryProvider.tsx`** — TanStack QueryClient: staleTime=5min, gcTime=30min, refetchOnWindowFocus=false, retry=1.

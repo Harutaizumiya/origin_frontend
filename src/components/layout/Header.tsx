@@ -35,8 +35,8 @@ const NOTIFICATION_ITEMS = [
   },
   {
     id: "batch-created",
-    title: "新建批次已入库",
-    description: "批次创建成功后已刷新库存概览，最新数据可在库存状态页查看。",
+    title: "新增库存已入库",
+    description: "入库操作完成后已刷新库存概览，最新数据可在库存状态页查看。",
     time: "今天 09:24",
     icon: PackageCheck,
     iconClassName: "bg-emerald-50 text-emerald-600",

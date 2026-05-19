@@ -285,8 +285,8 @@ function NewBatchModal({
             >
               <div className="flex items-start justify-between border-b border-surface-container-high px-8 py-5">
                 <div>
-                  <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">新建批次</h3>
-                  <p className="mt-1 text-sm text-on-surface-variant">当前操作会直接调用 Django `/batches` 接口。</p>
+                  <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">新增库存</h3>
+                  <p className="mt-1 text-sm text-on-surface-variant">选择货物并录入本次入库数量，后端会按库存入库权限校验。</p>
                 </div>
                 <button
                   type="button"
@@ -423,7 +423,7 @@ function NewBatchModal({
                     className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <Plus size={16} />}
-                    创建批次
+                    确认入库
                   </button>
                 </div>
               </div>
@@ -615,7 +615,7 @@ const ViewToggle = memo(function ViewToggle({
 export const InventoryStatusPage: React.FC = () => {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
-  const canCreateBatch = hasPermission("batches_create");
+  const canAddInventory = hasPermission("batch_operations_add");
   const canPrintLabel = hasPermission("label_payload_issue");
   const [detail, setDetail] = useState<InventoryBatchDetail | null>(null);
   const [view, setView] = useState<InventoryView>("card");
@@ -812,14 +812,14 @@ export const InventoryStatusPage: React.FC = () => {
   }, []);
 
   const openCreateBatchModal = useCallback(() => {
-    if (!canCreateBatch) {
+    if (!canAddInventory) {
       return;
     }
     setIsCreateBatchOpen(true);
     setSelectedProduct(null);
     setNewBatchError(null);
     setNewBatchForm(DEFAULT_NEW_BATCH_FORM);
-  }, [canCreateBatch]);
+  }, [canAddInventory]);
 
   const closeCreateBatchModal = useCallback(() => {
     if (isSubmitting) {
@@ -846,8 +846,8 @@ export const InventoryStatusPage: React.FC = () => {
   }, []);
 
   const handleCreateBatch = useCallback(async () => {
-    if (!canCreateBatch) {
-      setNewBatchError("当前账号没有创建批次的权限。");
+    if (!canAddInventory) {
+      setNewBatchError("当前账号没有库存入库权限。");
       return;
     }
     if (!selectedProduct) {
@@ -877,8 +877,8 @@ export const InventoryStatusPage: React.FC = () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.batches.product(selectedProduct.id) });
       setBatchFeedback({
         type: "success",
-        title: "批次创建成功",
-        description: `已为 ${selectedProduct.product_name} 创建新批次，库存列表会自动同步最新结果。`,
+        title: "库存入库成功",
+        description: `已为 ${selectedProduct.product_name} 记录本次入库，库存列表会自动同步最新结果。`,
       });
       setIsBatchFeedbackOpen(true);
       setIsCreateBatchOpen(false);
@@ -888,7 +888,7 @@ export const InventoryStatusPage: React.FC = () => {
       setNewBatchError(getErrorMessage(error));
       setBatchFeedback({
         type: "error",
-        title: "批次创建失败",
+        title: "库存入库失败",
         description: getErrorMessage(error),
         detail: getErrorDebugDetail(error),
       });
@@ -896,7 +896,7 @@ export const InventoryStatusPage: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [canCreateBatch, newBatchForm.manufactureDate, newBatchForm.quantity, newBatchForm.remarks, queryClient, reloadPageData, selectedProduct]);
+  }, [canAddInventory, newBatchForm.manufactureDate, newBatchForm.quantity, newBatchForm.remarks, queryClient, reloadPageData, selectedProduct]);
 
   const closeBatchFeedback = useCallback(() => {
     setIsBatchFeedbackOpen(false);
@@ -959,16 +959,16 @@ export const InventoryStatusPage: React.FC = () => {
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">库存状态</h2>
-          <p className="mt-1 text-on-surface-variant">批次列表、新建批次与详情弹窗已切到 Django `batches` 接口。</p>
+          <p className="mt-1 text-on-surface-variant">查看批次库存、效期状态，并通过库存入库权限控制新增库存入口。</p>
         </div>
-        {canCreateBatch ? (
+        {canAddInventory ? (
           <button
             type="button"
             onClick={openCreateBatchModal}
             className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg"
           >
             <Plus size={18} />
-            新建批次
+            新增库存
           </button>
         ) : null}
       </div>
