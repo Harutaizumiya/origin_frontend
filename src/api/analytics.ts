@@ -110,12 +110,12 @@ function toRiskScore(batch: BatchDto, remainingDays: number) {
   return Math.max(0, Math.min(100, progressScore ?? fallbackScore));
 }
 
-function toRiskColor(score: number) {
-  if (score >= 90) {
+function toRiskColor(score: number, remainingDays: number) {
+  if (remainingDays < 0) {
     return "text-red-600";
   }
   if (score >= 75) {
-    return "text-orange-600";
+    return "text-amber-700";
   }
   if (score >= 60) {
     return "text-amber-600";
@@ -141,7 +141,7 @@ function toRiskRankingItem(batch: BatchDto): RiskRankingItem {
     riskType: toRiskType(batch, metrics.remainingDays),
     daysLabel: toDaysLabel(metrics.remainingDays),
     score,
-    color: toRiskColor(score),
+    color: toRiskColor(score, metrics.remainingDays),
   };
 }
 

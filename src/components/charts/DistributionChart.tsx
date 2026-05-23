@@ -1,6 +1,6 @@
-import React, { memo } from "react";
+import React, { memo, useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { ArrowRight } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "../../lib/utils";
 import type { Category } from "../../types/inventory";
 
@@ -9,9 +9,16 @@ interface DistributionChartProps {
 }
 
 export const DistributionChart = memo(function DistributionChart({ categories }: DistributionChartProps) {
+  const [expanded, setExpanded] = useState(false);
+  const hasMore = categories.length > 6;
+  const visibleCategories = useMemo(
+    () => (expanded || !hasMore ? categories : categories.slice(0, 6)),
+    [categories, expanded, hasMore],
+  );
+
   return (
   <div className="space-y-6">
-    {categories.map((cat) => (
+    {visibleCategories.map((cat) => (
       <div key={cat.name} className="space-y-2">
         <div className="flex justify-between text-sm">
           <span className="text-on-surface-variant">{cat.name}</span>
@@ -27,11 +34,18 @@ export const DistributionChart = memo(function DistributionChart({ categories }:
         </div>
       </div>
     ))}
-    <div className="mt-8 pt-6 border-t border-surface-container-high flex justify-center">
-      <button className="text-primary text-sm font-bold hover:underline flex items-center gap-1">
-        查看详细清单 <ArrowRight size={14} />
-      </button>
-    </div>
+    {hasMore ? (
+      <div className="mt-8 flex justify-center border-t border-surface-container-high pt-6">
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          className="inline-flex items-center gap-2 rounded-full border border-surface-container-high bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-high"
+        >
+          {expanded ? "收起列表" : `查看完整列表（${categories.length}）`}
+          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+      </div>
+    ) : null}
   </div>
   );
 });

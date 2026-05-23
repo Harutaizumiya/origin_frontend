@@ -37,20 +37,20 @@ function getStatusMeta(health: InventoryHealth, expiryStatus?: ExpiryStatus | nu
 
   if (health === "critical") {
     return {
-      badgeClassName: "bg-red-50 text-red-600 border-red-200",
-      progressClassName: "bg-red-500",
-      textClassName: "text-red-600",
-      icon: <AlertTriangle size={14} className="text-red-500" />,
-      label: "紧急",
+      badgeClassName: "bg-amber-50 text-amber-700 border-amber-200",
+      progressClassName: "bg-amber-500",
+      textClassName: "text-amber-700",
+      icon: <AlertTriangle size={14} className="text-amber-600" />,
+      label: "临期",
     };
   }
 
   if (health === "warning") {
     return {
-      badgeClassName: "bg-orange-50 text-orange-600 border-orange-200",
-      progressClassName: "bg-orange-500",
-      textClassName: "text-orange-600",
-      icon: <AlertTriangle size={14} className="text-orange-500" />,
+      badgeClassName: "bg-amber-50 text-amber-700 border-amber-200",
+      progressClassName: "bg-amber-400",
+      textClassName: "text-amber-700",
+      icon: <AlertTriangle size={14} className="text-amber-600" />,
       label: "临期",
     };
   }
@@ -193,7 +193,7 @@ export const InventoryBatchDetailModal: React.FC<InventoryBatchDetailModalProps>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-2xl font-bold text-on-surface md:text-[28px]">
-                          距离到期还有 <span className="font-black text-red-600">{metrics.remainingDays}</span> 天
+                          距离到期还有 <span className={cn("font-black", statusMeta.textClassName)}>{metrics.remainingDays}</span> 天
                         </h3>
                         <span
                           className={cn(

@@ -1,12 +1,12 @@
 import React, { memo } from "react";
-import { AlertTriangle, Package, ShieldCheck, Timer } from "lucide-react";
+import { AlertTriangle, Clock3, Package, ShieldCheck } from "lucide-react";
 import type { DashboardStat, DashboardStatIcon } from "../../types/inventory";
 import { StatCard } from "./StatCard";
 
 const STAT_ICONS: Record<DashboardStatIcon, React.ReactNode> = {
   package: <Package size={24} />,
-  timer: <Timer size={24} />,
-  alert: <AlertTriangle size={24} />,
+  timer: <Clock3 size={24} className="text-amber-600" />,
+  alert: <AlertTriangle size={24} className="text-red-600" />,
   shield: <ShieldCheck size={24} />,
 };
 

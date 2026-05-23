@@ -62,9 +62,9 @@ export const TrendChart = memo(function TrendChart({ data }: TrendChartProps) {
               key={`cell-${index}`}
               fill={
                 entry.type === "critical"
-                  ? "#BA1A1A"
+                  ? "#D97706"
                   : entry.type === "warning"
-                    ? "#F59E0B"
+                    ? "#FBBF24"
                     : "#0057C266"
               }
             />

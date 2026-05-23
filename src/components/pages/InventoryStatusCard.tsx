@@ -43,6 +43,7 @@ export const InventoryStatusCard = memo(function InventoryStatusCard({
   formattedReceivedDate,
   onOpenDetail,
 }: InventoryStatusCardProps) {
+  const isExpired = item.expiryStatus === "expired";
   const isCritical = metrics.health === "critical";
   const openDetail = useCallback(() => onOpenDetail(item), [item, onOpenDetail]);
 
@@ -65,7 +66,12 @@ export const InventoryStatusCard = memo(function InventoryStatusCard({
     >
       {isCritical && (
         <div
-          className="pointer-events-none absolute inset-[-1px] rounded-3xl border-3 border-red-400 shadow-[inset_0_0_10px_rgba(239,68,68,0.2)] animate-pulse"
+          className={cn(
+            "pointer-events-none absolute inset-[-1px] rounded-3xl border-3 animate-pulse",
+            isExpired
+              ? "border-red-400 shadow-[inset_0_0_10px_rgba(239,68,68,0.2)]"
+              : "border-amber-400 shadow-[inset_0_0_10px_rgba(245,158,11,0.18)]",
+          )}
           style={{ animationDuration: "2.5s" }}
         />
       )}

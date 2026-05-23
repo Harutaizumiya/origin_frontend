@@ -10,7 +10,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => (
     className={cn(
       "w-2 h-2 rounded-full",
       status === "critical"
-        ? "bg-error"
+        ? "bg-amber-600"
         : status === "warning"
           ? "bg-amber-500"
           : "bg-primary",

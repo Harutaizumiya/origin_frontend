@@ -17,7 +17,7 @@ export const UrgentTableRow = memo(function UrgentTableRow({ item }: UrgentTable
           className={cn(
             "w-8 h-8 rounded flex items-center justify-center font-bold text-xs",
             item.status === "critical"
-              ? "bg-error/10 text-error"
+              ? "bg-amber-100 text-amber-700"
               : item.status === "warning"
                 ? "bg-amber-500/10 text-amber-600"
                 : "bg-primary/10 text-primary",
@@ -44,7 +44,7 @@ export const UrgentTableRow = memo(function UrgentTableRow({ item }: UrgentTable
           className={cn(
             "text-sm font-bold",
             item.status === "critical"
-              ? "text-error"
+              ? "text-amber-700"
               : item.status === "warning"
                 ? "text-amber-600"
                 : "text-on-surface",

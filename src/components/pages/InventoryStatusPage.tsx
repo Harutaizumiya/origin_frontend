@@ -6,6 +6,7 @@ import {
   ApiClientError,
   buildInventoryDetail,
   createBatch,
+  createBatchOperation,
   getBatchLabelPayload,
   getShelfLifeMetricsFromDates,
   listBatches,
@@ -89,11 +90,13 @@ function getShelfLifeMetrics(item: InventoryRecord): ShelfLifeMetrics {
   return getShelfLifeMetricsFromDates(item.expireDate, item.manufactureDate);
 }
 
-function getHealthMeta(health: InventoryHealth): InventoryHealthMeta {
-  if (health === "critical") {
+function getHealthMeta(health: InventoryHealth, expiryStatus?: string | null): InventoryHealthMeta {
+  const isExpired = expiryStatus === "expired";
+
+  if (health === "critical" && isExpired) {
     return {
-      label: "高风险",
-      hint: "建议优先处理该批次",
+      label: "已过期",
+      hint: "该批次已超过保质期，请立即处置",
       tagClassName: "bg-red-50 text-red-500 border-red-200",
       lineClassName: "bg-red-500",
       icon: <CircleAlert size={14} className="text-red-500" />,
@@ -101,14 +104,25 @@ function getHealthMeta(health: InventoryHealth): InventoryHealthMeta {
     };
   }
 
+  if (health === "critical") {
+    return {
+      label: "临期",
+      hint: "该批次临近保质期，请优先处理",
+      tagClassName: "bg-amber-50 text-amber-700 border-amber-200",
+      lineClassName: "bg-amber-500",
+      icon: <CircleAlert size={14} className="text-amber-600" />,
+      progress: "bg-amber-500",
+    };
+  }
+
   if (health === "warning") {
     return {
-      label: "临期预警",
+      label: "临期",
       hint: "请关注剩余效期",
-      tagClassName: "bg-orange-50 text-orange-500 border-orange-200",
-      lineClassName: "bg-orange-400",
-      icon: <Clock3 size={14} className="text-orange-500" />,
-      progress: "bg-orange-400",
+      tagClassName: "bg-amber-50 text-amber-700 border-amber-200",
+      lineClassName: "bg-amber-400",
+      icon: <Clock3 size={14} className="text-amber-600" />,
+      progress: "bg-amber-400",
     };
   }
 
@@ -128,7 +142,7 @@ function toInventoryViewModel(item: InventoryRecord): InventoryViewModel {
   return {
     item,
     metrics,
-    meta: getHealthMeta(metrics.health),
+    meta: getHealthMeta(metrics.health, item.expiryStatus),
     quantityValue: parseQuantity(item.quantity),
     formattedQuantity: formatQuantity(item.quantity),
     formattedManufactureDate: formatDate(item.manufactureDate),
@@ -149,13 +163,16 @@ function sortInventoryItems(items: InventoryViewModel[]) {
   });
 }
 
-function getCardPageSize(containerWidth: number) {
+function getCardColumnCount(containerWidth: number) {
   if (containerWidth <= 0) {
-    return LIST_PAGE_SIZE;
+    return 1;
   }
 
-  const columnCount = Math.max(1, Math.floor((containerWidth + CARD_GRID_GAP) / (CARD_MIN_WIDTH + CARD_GRID_GAP)));
-  return columnCount * CARD_ROWS_PER_PAGE;
+  return Math.max(1, Math.floor((containerWidth + CARD_GRID_GAP) / (CARD_MIN_WIDTH + CARD_GRID_GAP)));
+}
+
+function getCardPageSize(columnCount: number) {
+  return Math.max(1, columnCount) * CARD_ROWS_PER_PAGE;
 }
 
 function getErrorMessage(error: unknown) {
@@ -193,8 +210,15 @@ function getErrorDebugDetail(error: unknown) {
 
 const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: { items: InventoryViewModel[] }) {
   const totalQuantity = items.reduce((sum, viewModel) => sum + viewModel.quantityValue, 0);
-  const warningBatchCount = items.filter((viewModel) => viewModel.metrics.health === "warning").length;
-  const criticalBatchCount = items.filter((viewModel) => viewModel.metrics.health === "critical").length;
+  const warningBatchCount = items.filter(
+    (viewModel) =>
+      viewModel.metrics.health !== "healthy" &&
+      viewModel.item.expiryStatus !== "expired" &&
+      viewModel.metrics.remainingDays > 0,
+  ).length;
+  const expiredBatchCount = items.filter(
+    (viewModel) => viewModel.item.expiryStatus === "expired" || viewModel.metrics.remainingDays <= 0,
+  ).length;
   const healthyRate = Math.round(
     (items.filter((viewModel) => viewModel.metrics.health === "healthy").length / Math.max(items.length, 1)) * 100,
   );
@@ -215,13 +239,13 @@ const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: {
         value={String(warningBatchCount)}
         trend="需优先关注"
         trendType="neutral"
-        icon={<Clock3 size={24} className="text-orange-500" />}
+        icon={<Clock3 size={24} className="text-amber-600" />}
         iconBg="bg-amber-500/10"
         iconColor="text-amber-600"
       />
       <StatCard
-        title="异常批次"
-        value={String(criticalBatchCount)}
+        title="已过期批次"
+        value={String(expiredBatchCount)}
         trend="需及时处理"
         trendType="critical"
         icon={<TriangleAlert size={24} />}
@@ -482,10 +506,12 @@ function BatchFeedbackToast({
 
 const InventoryCardView = memo(function InventoryCardView({
   items,
+  columnCount,
   gridRef,
   onOpenDetail,
 }: {
   items: InventoryViewModel[];
+  columnCount: number;
   gridRef?: React.Ref<HTMLDivElement>;
   onOpenDetail: (item: InventoryRecord) => void;
 }) {
@@ -493,7 +519,7 @@ const InventoryCardView = memo(function InventoryCardView({
     <div
       ref={gridRef}
       className="grid justify-items-start gap-4"
-      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${CARD_MIN_WIDTH}px), 1fr))` }}
+      style={{ gridTemplateColumns: `repeat(${Math.max(columnCount, 1)}, minmax(0, 1fr))` }}
     >
       {items.map((viewModel) => {
         return (
@@ -620,7 +646,7 @@ export const InventoryStatusPage: React.FC = () => {
   const [detail, setDetail] = useState<InventoryBatchDetail | null>(null);
   const [view, setView] = useState<InventoryView>("card");
   const [currentPage, setCurrentPage] = useState(1);
-  const [cardPageSize, setCardPageSize] = useState(LIST_PAGE_SIZE);
+  const [cardColumnCount, setCardColumnCount] = useState(1);
   const [selectedItem, setSelectedItem] = useState<InventoryRecord | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isCreateBatchOpen, setIsCreateBatchOpen] = useState(false);
@@ -702,7 +728,7 @@ export const InventoryStatusPage: React.FC = () => {
       });
   }, [deferredQuery, isCreateBatchOpen, products]);
 
-  const pageSize = view === "card" ? cardPageSize : LIST_PAGE_SIZE;
+  const pageSize = view === "card" ? getCardPageSize(cardColumnCount) : LIST_PAGE_SIZE;
   const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const pagedItems = sortedItems.slice(startIndex, startIndex + pageSize);
@@ -789,10 +815,8 @@ export const InventoryStatusPage: React.FC = () => {
         statusLabel:
           selectedItem.expiryStatus === "expired"
             ? "已过期"
-            : selectedMetrics?.health === "critical"
-              ? "高风险"
-              : selectedMetrics?.health === "warning"
-                ? "临期预警"
+            : selectedMetrics?.health === "critical" || selectedMetrics?.health === "warning"
+              ? "临期"
                 : "效期健康",
         qrCode: payload.qrCode,
       });
@@ -867,10 +891,14 @@ export const InventoryStatusPage: React.FC = () => {
     setNewBatchError(null);
 
     try {
-      await createBatch({
+      const batch = await createBatch({
         product_id: selectedProduct.id,
-        quantity: newBatchForm.quantity.trim(),
         manufacture_date: newBatchForm.manufactureDate,
+        remarks: newBatchForm.remarks.trim() || null,
+      });
+      await createBatchOperation(batch.id, {
+        operation_type: "add",
+        quantity: newBatchForm.quantity.trim(),
         remarks: newBatchForm.remarks.trim() || null,
       });
       await reloadPageData();
@@ -925,7 +953,7 @@ export const InventoryStatusPage: React.FC = () => {
   }, [isBatchFeedbackOpen]);
 
   useEffect(() => {
-    if (view !== "card") {
+    if (view !== "card" || isLoading) {
       return;
     }
 
@@ -935,8 +963,8 @@ export const InventoryStatusPage: React.FC = () => {
     }
 
     const updatePageSize = () => {
-      const nextPageSize = getCardPageSize(container.clientWidth);
-      setCardPageSize((previousPageSize) => (previousPageSize === nextPageSize ? previousPageSize : nextPageSize));
+      const nextColumnCount = getCardColumnCount(container.clientWidth);
+      setCardColumnCount((previousColumnCount) => (previousColumnCount === nextColumnCount ? previousColumnCount : nextColumnCount));
     };
 
     updatePageSize();
@@ -948,7 +976,7 @@ export const InventoryStatusPage: React.FC = () => {
     const observer = new ResizeObserver(updatePageSize);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [view]);
+  }, [isLoading, view]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -1006,7 +1034,7 @@ export const InventoryStatusPage: React.FC = () => {
               </div>
             </div>
           ) : view === "card" ? (
-            <InventoryCardView items={pagedItems} gridRef={cardGridRef} onOpenDetail={openDetail} />
+            <InventoryCardView items={pagedItems} columnCount={cardColumnCount} gridRef={cardGridRef} onOpenDetail={openDetail} />
           ) : (
             <InventoryListView items={pagedItems} onOpenDetail={openDetail} />
           )}

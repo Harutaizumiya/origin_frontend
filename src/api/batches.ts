@@ -59,7 +59,6 @@ export interface BatchOperationListParams {
 export interface BatchMutationInput {
   product_id: number;
   batch_code?: string;
-  quantity: string;
   manufacture_date: string;
   expire_date?: string | null;
   status?: string | null;
@@ -78,7 +77,7 @@ export interface BatchOperationRevertInput {
 
 export interface BatchOperationMutationResult {
   operation: BatchOperationDto;
-  batch: BatchDto;
+  batch: Pick<BatchDto, "id" | "quantity" | "status">;
 }
 
 export interface BatchLabelPayloadDto {
@@ -112,7 +111,6 @@ export async function createBatch(input: BatchMutationInput) {
     body: {
       product_id: input.product_id,
       ...(input.batch_code ? { batch_code: input.batch_code.trim() } : {}),
-      quantity: input.quantity,
       manufacture_date: input.manufacture_date,
       ...(input.expire_date !== undefined ? { expire_date: input.expire_date } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),

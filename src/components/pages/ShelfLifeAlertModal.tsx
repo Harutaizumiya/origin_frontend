@@ -93,22 +93,22 @@ function getStatusBadge(alertStatus: Exclude<ExpiryStatus, "normal">): StatusBad
   }
   if (alertStatus === "critical") {
     return {
-      className: "bg-red-50 text-red-600 border-red-200",
-      icon: <AlertTriangle size={12} className="text-red-500" />,
-      label: "紧急",
+      className: "bg-amber-50 text-amber-700 border-amber-200",
+      icon: <AlertTriangle size={12} className="text-amber-600" />,
+      label: "临期",
     };
   }
   if (alertStatus === "warning") {
     return {
-      className: "bg-orange-50 text-orange-600 border-orange-200",
-      icon: <Clock size={12} className="text-orange-500" />,
+      className: "bg-amber-50 text-amber-700 border-amber-200",
+      icon: <Clock size={12} className="text-amber-600" />,
       label: "临期",
     };
   }
 
   return {
-    className: "bg-orange-50 text-orange-600 border-orange-200",
-    icon: <Clock size={12} className="text-orange-500" />,
+    className: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: <Clock size={12} className="text-amber-600" />,
     label: "临期",
   };
 }
@@ -202,6 +202,7 @@ export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void 
       { expired: 0, critical: 0, warning: 0, total: 0 },
     );
   }, [alertBatches]);
+  const nearExpiryCount = summary.warning + summary.critical;
 
   return (
     <AnimatePresence>
@@ -228,7 +229,7 @@ export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void 
                   <p className="mt-1 text-sm text-on-surface-variant">
                     {isLoading
                       ? "正在查询临期/过期批次..."
-                      : `共 ${total} 条记录，当前显示 ${summary.warning + summary.critical + summary.expired} 条预警批次`}
+                      : `共 ${total} 条记录，当前显示 ${nearExpiryCount + summary.expired} 条预警批次`}
                   </p>
                 </div>
                 <button
@@ -241,7 +242,7 @@ export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void 
               </div>
 
               <div className="border-b border-surface-container-high px-8 py-5">
-                <p className="text-sm text-on-surface-variant">默认展示当前临期、紧急和已过期批次。</p>
+                <p className="text-sm text-on-surface-variant">默认展示当前临期和已过期批次。</p>
 
                 {!isLoading && summary.total > 0 && (
                   <div className="mt-4 flex flex-wrap gap-3">
@@ -250,14 +251,9 @@ export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void 
                         <AlertTriangle size={12} />已过期 {summary.expired} 条
                       </span>
                     )}
-                    {summary.critical > 0 && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-600">
-                        <AlertTriangle size={12} />紧急 {summary.critical} 条
-                      </span>
-                    )}
-                    {summary.warning > 0 && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-600">
-                        <Clock size={12} />临期 {summary.warning} 条
+                    {nearExpiryCount > 0 && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                        <Clock size={12} />临期 {nearExpiryCount} 条
                       </span>
                     )}
                   </div>
@@ -352,8 +348,8 @@ export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void 
                                         alertStatus === "expired"
                                           ? "bg-red-600"
                                           : alertStatus === "critical"
-                                            ? "bg-red-500"
-                                            : "bg-orange-400",
+                                            ? "bg-amber-500"
+                                            : "bg-amber-400",
                                       )}
                                       style={{ width: `${metrics.percent}%` }}
                                     />
@@ -368,8 +364,8 @@ export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void 
                                     alertStatus === "expired"
                                       ? "text-red-600"
                                       : alertStatus === "critical"
-                                        ? "text-red-500"
-                                        : "text-orange-500",
+                                        ? "text-amber-700"
+                                        : "text-amber-600",
                                   )}
                                 >
                                   {batch.days_until_expiry !== null && batch.days_until_expiry !== undefined

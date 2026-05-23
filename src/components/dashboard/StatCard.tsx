@@ -16,12 +16,13 @@ export const StatCard = memo(function StatCard({
   return (
   <motion.div
     whileHover={{ y: -4 }}
-    className="bg-surface-container-lowest p-6 rounded-3xl ambient-shadow border border-surface-container/10"
+    transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+    className="group rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-7 ambient-shadow"
   >
-    <div className="flex justify-between items-start mb-4">
+    <div className="mb-5 flex items-start justify-between gap-4">
       <div
         className={cn(
-          "w-12 h-12 rounded-2xl flex items-center justify-center",
+          "flex h-14 w-14 items-center justify-center rounded-[20px] transition-transform duration-300 group-hover:scale-[1.02]",
           iconBg,
           iconColor,
         )}
@@ -30,8 +31,8 @@ export const StatCard = memo(function StatCard({
       </div>
       <TrendBadge trend={trend} trendType={trendType} />
     </div>
-    <p className="text-sm font-medium text-on-surface-variant">{title}</p>
-    <h3 className="text-2xl font-bold mt-1 text-on-surface font-headline">
+    <p className="text-sm font-semibold text-on-surface-variant">{title}</p>
+    <h3 className="mt-2 font-headline text-4xl font-black tracking-tight text-on-surface">
       {value}
     </h3>
   </motion.div>

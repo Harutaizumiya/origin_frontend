@@ -13,14 +13,14 @@ export const TrendBadge: React.FC<TrendBadgeProps> = ({ trend, trendType }) => {
   return (
     <span
       className={cn(
-        "flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg",
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold",
         trendType === "up"
-          ? "text-green-600 bg-green-50"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
           : trendType === "down"
-            ? "text-error bg-error/10"
+            ? "border-red-200 bg-red-50 text-error"
             : trendType === "critical"
-              ? "text-red-600 bg-red-500/10"
-            : "text-amber-600 bg-amber-50",
+              ? "border-amber-200 bg-amber-50 text-amber-700"
+            : "border-surface-container-high bg-surface-container-low text-amber-700",
       )}
     >
       {trendType === "up" ? (

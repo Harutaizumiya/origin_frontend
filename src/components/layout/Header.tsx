@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Bell, Bug, ChevronDown, HelpCircle, PackageCheck, ShieldAlert, Trash2, TriangleAlert, X } from "lucide-react";
 import { clearLogEntries, getLogEntries, subscribeLogEntries, type LogEntry, type LogLevel } from "../../lib/logger";
+import { useAuth } from "../../providers/AuthProvider";
 
 const HEADER_HEIGHT_PX = 64;
 const HEADER_HIDE_THRESHOLD_PX = 160;
@@ -87,6 +88,7 @@ function stringifyLogDetails(entry: LogEntry) {
 }
 
 export const Header: React.FC<HeaderProps> = ({ sidebarWidth }) => {
+  const { user } = useAuth();
   const [visible, setVisible] = useState(true);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<NotificationTab>("messages");
@@ -96,6 +98,7 @@ export const Header: React.FC<HeaderProps> = ({ sidebarWidth }) => {
   const lastScrollYRef = useRef(0);
   const tickingRef = useRef(false);
   const hasRuntimeAlert = logEntries.some((entry) => entry.level === "warn" || entry.level === "error");
+  const greetingName = user?.displayName || user?.username || "用户";
   const filteredLogEntries =
     logLevelFilter === "all" ? logEntries : logEntries.filter((entry) => entry.level === logLevelFilter);
 
@@ -194,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({ sidebarWidth }) => {
               </button>
             </div>
             <div className="text-right">
-              <p className="text-sm font-bold text-on-surface">库存管理系统</p>
+              <p className="text-sm font-bold text-on-surface">{`你好，${greetingName}`}</p>
               <p className="text-[10px] text-on-surface-variant">{new Date().toLocaleDateString("zh-CN")}</p>
             </div>
           </div>
